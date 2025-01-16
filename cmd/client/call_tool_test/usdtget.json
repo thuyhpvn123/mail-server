@@ -1,0 +1,11 @@
+[
+    {
+        "action": "call",
+        "address": "0000000000000000000000000000000000000002",
+        "input": "0x313ce567",
+        "replace_address": [],
+        "amount": "0",
+        "name": "MailFactory-CreateEmailStorage"
+    }
+
+]

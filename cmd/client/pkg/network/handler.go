@@ -25,23 +25,26 @@ type Handler struct {
 	receiptChan          chan types.Receipt
 	eventLogChan         chan types.EventLogs
 	transactionErrorChan chan types.TransactionError
+	deviceKeyChan          chan types.LastDeviceKey
 }
 
 func NewHandler(
 	accountStateChan chan types.AccountState,
 	receiptChan chan types.Receipt,
+	deviceKeyChan chan types.LastDeviceKey,
 	transactionErrorChan chan types.TransactionError,
 ) *Handler {
 	return &Handler{
 		accountStateChan:     accountStateChan,
 		receiptChan:          receiptChan,
+		deviceKeyChan:          deviceKeyChan,
 		transactionErrorChan: transactionErrorChan,
 	}
 }
 
 func (h *Handler) HandleRequest(request network.Request) (err error) {
 	cmd := request.Message().Command()
-	logger.Debug("handling command: " + cmd)
+	logger.Debug("handler.gohandling command: " + cmd)
 	switch cmd {
 	case command.InitConnection:
 		return h.handleInitConnection(request)
@@ -54,6 +57,8 @@ func (h *Handler) HandleRequest(request network.Request) (err error) {
 		return nil
 	case command.Receipt:
 		return h.handleReceipt(request)
+	case command.DeviceKey:
+		return h.handleDeviceKey(request)
 	case command.EventLogs:
 		return h.handleEventLogs(request)
 	case command.QueryLogs:
@@ -104,6 +109,40 @@ func (h *Handler) handleAccountState(request network.Request) (err error) {
 	}
 	logger.Debug(fmt.Sprintf("Receive Account state: \n%v", accountState))
 	h.accountStateChan <- accountState
+	return nil
+}
+
+func (h *Handler) handleDeviceKey(request network.Request) (err error) {
+		
+	data := request.Message().Body()
+	if (len(data) != 64 && len(data) != 32) {
+		err = fmt.Errorf("unable to parse wrong len: %d", len(data))
+		return err
+	}
+
+
+
+	transactionHash := data[:32]
+	
+	var lastDeviceKeyFromServer []byte
+	
+	if (len(data) == 32) {
+		lastDeviceKeyFromServer = common.Hash{}.Bytes()
+	} else {
+		lastDeviceKeyFromServer = data[32:]
+	}
+
+	lastDeviceKey := types.LastDeviceKey{
+		TransactionHash:       transactionHash,
+		LastDeviceKeyFromServer: lastDeviceKeyFromServer,
+	}
+	if h.deviceKeyChan != nil {
+	    h.deviceKeyChan <- lastDeviceKey
+	} else {
+	    err = fmt.Errorf("deviceKeyChan is nil")
+	    return err
+	}
+
 	return nil
 }
 

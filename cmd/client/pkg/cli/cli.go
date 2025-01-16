@@ -2,13 +2,14 @@ package cli
 
 import (
 	"bufio"
+	// "encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
 	"os"
 	"strconv"
 	"strings"
-	"time"
+	// "time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -24,6 +25,7 @@ import (
 	pb "gomail/mtn/proto"
 	"gomail/mtn/transaction"
 	"gomail/mtn/types"
+	"gomail/cmd/client"
 )
 
 var (
@@ -32,6 +34,7 @@ var (
 )
 
 type Cli struct {
+	client *client.Client
 	clientContext *client_context.ClientContext
 
 	//
@@ -40,15 +43,17 @@ type Cli struct {
 	reader   *bufio.Reader
 
 	transactionController client_types.TransactionController
-	accountStateChan      chan types.AccountState
+	// accountStateChan      chan types.AccountState
 	defaultRelatedAddress map[common.Address][][]byte
 }
 
 func NewCli(
+	client *client.Client,
 	clientContext *client_context.ClientContext,
 	transactionController client_types.TransactionController,
-	accountStateChan chan types.AccountState,
+	// accountStateChan chan types.AccountState,
 ) client_types.Cli {
+
 	commands := map[int]string{
 		0: "Exit",
 		1: "Send transaction",
@@ -62,11 +67,12 @@ func NewCli(
 		9: "Change log level",
 	}
 	return &Cli{
+		client: client,
 		clientContext:         clientContext,
 		stop:                  false,
 		commands:              commands,
 		transactionController: transactionController,
-		accountStateChan:      accountStateChan,
+		// accountStateChan:      accountStateChan,
 		defaultRelatedAddress: make(map[common.Address][][]byte),
 	}
 }
@@ -94,7 +100,7 @@ func (cli *Cli) Start() {
 			cli.CreateAccount()
 		case "4":
 			cli.PrintMessage("Enter address: ", "")
-			cli.AccountState(cli.ReadInputAddress())
+			cli.client.AccountState(cli.ReadInputAddress())
 			// TODO4
 		case "5":
 			cli.Subscribe()
@@ -194,7 +200,7 @@ func (cli *Cli) SendTransaction() error {
 	}
 
 	var err error
-	as, err := cli.AccountState(cli.clientContext.KeyPair.Address())
+	as, err := cli.client.AccountState(cli.clientContext.KeyPair.Address())
 	if err != nil {
 		return err
 	}
@@ -212,7 +218,7 @@ func (cli *Cli) SendTransaction() error {
 			)[12:],
 		)
 	}
-	var commissionPrivateKey []byte
+	// var commissionPrivateKey []byte
 	if action == pb.ACTION_CALL_SMART_CONTRACT {
 		data, err = cli.getDataForCallSmartContract()
 		if err != nil {
@@ -220,8 +226,8 @@ func (cli *Cli) SendTransaction() error {
 		}
 
 		cli.PrintMessage("Enter to private key for commission sign: ", "")
-		hexCommissionPrivateKey := cli.ReadInput()
-		commissionPrivateKey = common.FromHex(hexCommissionPrivateKey)
+		// hexCommissionPrivateKey := cli.ReadInput()
+		// commissionPrivateKey = common.FromHex(hexCommissionPrivateKey)
 	}
 
 	var relatedAddresses [][]byte
@@ -247,7 +253,9 @@ func (cli *Cli) SendTransaction() error {
 		if action == pb.ACTION_OPEN_CHANNEL {
 			maxGas = p_common.OPEN_CHANNEL_GAS_COST
 		} else {
-			maxGas = 500000
+			// maxGas = 500000
+			maxGas = 100000
+
 		}
 	}
 
@@ -256,7 +264,8 @@ func (cli *Cli) SendTransaction() error {
 	if err != nil {
 		maxGasPriceGwei = 10
 	}
-	maxGasPrice := 1000000000 * maxGasPriceGwei
+	// maxGasPrice := 1000000000 * maxGasPriceGwei
+	maxGasPrice := 1000000 * maxGasPriceGwei
 
 	cli.PrintMessage("Enter max time use in milli second (default 1000 milli second): ", "")
 	maxTimeUse, err := strconv.ParseUint(cli.ReadInput(), 10, 64)
@@ -264,23 +273,24 @@ func (cli *Cli) SendTransaction() error {
 		maxTimeUse = 1000
 	}
 
-	var transaction types.Transaction
+	var transaction types.Receipt
 
-	transaction, err = cli.transactionController.SendTransaction(
-		as.LastHash(),
+
+	relatedAddress := make([]common.Address, 0)
+	for i,v := range relatedAddresses {
+		relatedAddress[i] = common.HexToAddress(string(v))
+	}
+	transaction, err = cli.client.SendTransactionWithDeviceKey(
 		toAddress,
-		as.PendingBalance(),
 		amount,
+		action,
+		data,
+		relatedAddress,
 		maxGas,
 		maxGasPrice,
 		maxTimeUse,
-		action,
-		data,
-		relatedAddresses,
-		common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000"),
-		common.HexToHash("290decd9548b62a8d60345a988386f,c84ba6bc95484008f6362f93160ef3e563"),
-		commissionPrivateKey,
 	)
+
 	logger.Debug("Sending transaction", transaction)
 	if err != nil {
 		logger.Warn(err)
@@ -357,12 +367,12 @@ func (cli *Cli) AccountState(address common.Address) (types.AccountState, error)
 		command.GetAccountState,
 		address.Bytes(),
 	)
-	select {
-	case accountState := <-cli.accountStateChan:
-		return accountState, nil
-	case <-time.After(2 * time.Second):
+	// select {
+	// case accountState := <-cli.accountStateChan:
+	// 	return accountState, nil
+	// case <-time.After(2 * time.Second):
 		return nil, ErrorGetAccountStateTimedOut
-	}
+	// }
 }
 
 func (cli *Cli) StakeState(address common.Address) {

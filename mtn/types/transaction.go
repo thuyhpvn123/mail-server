@@ -58,6 +58,7 @@ type Transaction interface {
 	ValidMaxGas() bool
 	ValidMaxGasPrice(currentGasPrice uint64) bool
 	ValidAmount(fromAccountState AccountState, currentGasPrice uint64) bool
+	ValidAmountSpend(fromAccountState AccountState, spendAmount *big.Int) bool
 	ValidPendingUse(fromAccountState AccountState) bool
 	ValidDeploySmartContractToAccount(fromAccountState AccountState) bool
 	ValidCallSmartContractToAccount(toAccountState AccountState) bool

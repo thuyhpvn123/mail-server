@@ -33,19 +33,13 @@
 		"anonymous": false,
 		"inputs": [
 			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "previousOwner",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
+				"indexed": false,
+				"internalType": "string",
+				"name": "reason",
+				"type": "string"
 			}
 		],
-		"name": "OwnershipTransferred",
+		"name": "NotificationFailed",
 		"type": "event"
 	},
 	{
@@ -75,55 +69,23 @@
 			},
 			{
 				"internalType": "string",
-				"name": "fromHeader",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "replyTo",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "messageID",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
 				"name": "body",
 				"type": "string"
 			},
 			{
-				"internalType": "string",
-				"name": "html",
-				"type": "string"
+				"internalType": "bytes32[]",
+				"name": "_fileKeys",
+				"type": "bytes32[]"
 			},
 			{
-				"components": [
-					{
-						"internalType": "string",
-						"name": "contentDisposition",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "contentID",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "contentType",
-						"type": "string"
-					}
-				],
-				"internalType": "struct File[]",
-				"name": "fileData",
-				"type": "tuple[]"
-			},
-			{
-				"internalType": "uint256",
+				"internalType": "uint64",
 				"name": "createdAt",
-				"type": "uint256"
+				"type": "uint64"
+			},
+			{
+				"internalType": "string",
+				"name": "discription",
+				"type": "string"
 			}
 		],
 		"name": "createEmail",
@@ -151,59 +113,13 @@
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"name": "emails",
+		"inputs": [],
+		"name": "fileSc",
 		"outputs": [
 			{
-				"internalType": "uint256",
-				"name": "id",
-				"type": "uint256"
-			},
-			{
-				"internalType": "string",
-				"name": "subject",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "from",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "fromHeader",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "replyTo",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "messageID",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "body",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "html",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "createdAt",
-				"type": "uint256"
+				"internalType": "address",
+				"name": "",
+				"type": "address"
 			}
 		],
 		"stateMutability": "view",
@@ -211,15 +127,10 @@
 	},
 	{
 		"inputs": [],
-		"name": "getAllEmails",
+		"name": "getAllEmailInfos",
 		"outputs": [
 			{
 				"components": [
-					{
-						"internalType": "uint256",
-						"name": "id",
-						"type": "uint256"
-					},
 					{
 						"internalType": "string",
 						"name": "subject",
@@ -231,59 +142,27 @@
 						"type": "string"
 					},
 					{
-						"internalType": "string",
-						"name": "fromHeader",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "replyTo",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "messageID",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "body",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "html",
-						"type": "string"
-					},
-					{
-						"internalType": "uint256",
+						"internalType": "uint64",
 						"name": "createdAt",
-						"type": "uint256"
+						"type": "uint64"
 					},
 					{
-						"components": [
-							{
-								"internalType": "string",
-								"name": "contentDisposition",
-								"type": "string"
-							},
-							{
-								"internalType": "string",
-								"name": "contentID",
-								"type": "string"
-							},
-							{
-								"internalType": "string",
-								"name": "contentType",
-								"type": "string"
-							}
-						],
-						"internalType": "struct File[]",
-						"name": "files",
-						"type": "tuple[]"
+						"internalType": "uint8",
+						"name": "isRead",
+						"type": "uint8"
+					},
+					{
+						"internalType": "bytes32[]",
+						"name": "fileKeys",
+						"type": "bytes32[]"
+					},
+					{
+						"internalType": "string",
+						"name": "discription",
+						"type": "string"
 					}
 				],
-				"internalType": "struct Email[]",
+				"internalType": "struct EmailInfo[]",
 				"name": "",
 				"type": "tuple[]"
 			}
@@ -304,10 +183,73 @@
 			{
 				"components": [
 					{
-						"internalType": "uint256",
-						"name": "id",
-						"type": "uint256"
+						"components": [
+							{
+								"internalType": "string",
+								"name": "subject",
+								"type": "string"
+							},
+							{
+								"internalType": "string",
+								"name": "from",
+								"type": "string"
+							},
+							{
+								"internalType": "uint64",
+								"name": "createdAt",
+								"type": "uint64"
+							},
+							{
+								"internalType": "uint8",
+								"name": "isRead",
+								"type": "uint8"
+							},
+							{
+								"internalType": "bytes32[]",
+								"name": "fileKeys",
+								"type": "bytes32[]"
+							},
+							{
+								"internalType": "string",
+								"name": "discription",
+								"type": "string"
+							}
+						],
+						"internalType": "struct EmailInfo",
+						"name": "info",
+						"type": "tuple"
 					},
+					{
+						"internalType": "string",
+						"name": "body",
+						"type": "string"
+					}
+				],
+				"internalType": "struct Email",
+				"name": "",
+				"type": "tuple"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "startIndex",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "count",
+				"type": "uint256"
+			}
+		],
+		"name": "getEmailInfos",
+		"outputs": [
+			{
+				"components": [
 					{
 						"internalType": "string",
 						"name": "subject",
@@ -319,61 +261,71 @@
 						"type": "string"
 					},
 					{
-						"internalType": "string",
-						"name": "fromHeader",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "replyTo",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "messageID",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "body",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "html",
-						"type": "string"
-					},
-					{
-						"internalType": "uint256",
+						"internalType": "uint64",
 						"name": "createdAt",
-						"type": "uint256"
+						"type": "uint64"
 					},
 					{
-						"components": [
-							{
-								"internalType": "string",
-								"name": "contentDisposition",
-								"type": "string"
-							},
-							{
-								"internalType": "string",
-								"name": "contentID",
-								"type": "string"
-							},
-							{
-								"internalType": "string",
-								"name": "contentType",
-								"type": "string"
-							}
-						],
-						"internalType": "struct File[]",
-						"name": "files",
-						"type": "tuple[]"
+						"internalType": "uint8",
+						"name": "isRead",
+						"type": "uint8"
+					},
+					{
+						"internalType": "bytes32[]",
+						"name": "fileKeys",
+						"type": "bytes32[]"
+					},
+					{
+						"internalType": "string",
+						"name": "discription",
+						"type": "string"
 					}
 				],
-				"internalType": "struct Email",
+				"internalType": "struct EmailInfo[]",
 				"name": "",
-				"type": "tuple"
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_storageOwner",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "_service",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "_notification",
+				"type": "address"
+			}
+		],
+		"name": "initialize",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "isOwner",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
 			}
 		],
 		"stateMutability": "view",
@@ -384,32 +336,12 @@
 		"name": "notiSMC",
 		"outputs": [
 			{
-				"internalType": "contract INoti",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "owner",
-		"outputs": [
-			{
 				"internalType": "address",
 				"name": "",
 				"type": "address"
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "renounceOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -429,18 +361,25 @@
 		"inputs": [
 			{
 				"internalType": "address",
+				"name": "_fileSc",
+				"type": "address"
+			}
+		],
+		"name": "setFileSMC",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
 				"name": "_notiSMCAddress",
 				"type": "address"
 			}
 		],
 		"name": "setNotificationSMC",
-		"outputs": [
-			{
-				"internalType": "bool",
-				"name": "",
-				"type": "bool"
-			}
-		],
+		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
 	},
@@ -481,19 +420,6 @@
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "transferOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	}
 ]

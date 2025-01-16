@@ -224,7 +224,7 @@ func sendTransactionsLoop(
 					toAddress = common.HexToAddress(datas[i].Address)
 					relatedAddress := make([]common.Address, 0)
 
-					receipt, err := c.SendTransaction(
+					receipt, err := c.SendTransactionWithDeviceKey(
 						toAddress,
 						big.NewInt(0),
 						action,
@@ -258,10 +258,10 @@ func sendTransactionsLoop(
 			relatedAddress[i] = common.HexToAddress(v)
 		}
 		relatedAddress[lenRelatedAddress] = bls.NewKeyPair(config.PrivateKey()).Address()
-		logger.Error(relatedAddress)
-		logger.Error(toAddress)
+		logger.Info(relatedAddress)
+		logger.Info(toAddress)
 
-		receipt, err := c.SendTransaction(
+		receipt, err := c.SendTransactionWithDeviceKey(
 			toAddress,
 			big.NewInt(0).SetBytes(amount.Bytes()),
 			action,

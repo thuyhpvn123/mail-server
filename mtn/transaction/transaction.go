@@ -276,7 +276,7 @@ func (t *Transaction) CalculateHash() common.Hash {
 		NewDeviceKey:     t.proto.NewDeviceKey,
 	}
 	bHashPb, _ := proto.Marshal(hashPb)
-	logger.Info("CalculateHash", hex.EncodeToString(bHashPb))
+	// logger.Info("CalculateHash", hex.EncodeToString(bHashPb))
 	return crypto.Keccak256Hash(bHashPb)
 }
 
@@ -331,14 +331,21 @@ func (t *Transaction) ValidMaxGasPrice(currentGasPrice uint64) bool {
 	return currentGasPrice <= t.MaxGasPrice()
 }
 
+func (t *Transaction) ValidAmountSpend(
+	fromAccountState types.AccountState,
+	spendAmount *big.Int,
+) bool {
+	totalBalance := big.NewInt(0).Add(fromAccountState.Balance(), t.PendingUse())
+	totalSpend := big.NewInt(0).Add(spendAmount, t.Amount())
+	return totalBalance.Cmp(totalSpend) >= 0
+}
+
 func (t *Transaction) ValidAmount(
 	fromAccountState types.AccountState,
 	currentGasPrice uint64,
 ) bool {
 	fee := t.Fee(currentGasPrice)
-	totalBalance := big.NewInt(0).Add(fromAccountState.Balance(), t.PendingUse())
-	totalSpend := big.NewInt(0).Add(fee, t.Amount())
-	return totalBalance.Cmp(totalSpend) >= 0
+	return t.ValidAmountSpend(fromAccountState, fee)
 }
 
 func (t *Transaction) ValidPendingUse(fromAccountState types.AccountState) bool {

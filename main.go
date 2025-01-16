@@ -2,53 +2,60 @@ package main
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
+	"compress/gzip"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/hex"
-	"mime"
-	"regexp"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
-	"github.com/microcosm-cc/bluemonday"
-	"github.com/phires/go-guerrilla"
-	"github.com/phires/go-guerrilla/backends"
 	"log"
+	"mime"
+	"net"
 	"net/http"
 	"net/mail"
 	"net/url"
 	"os"
+	"os/exec"
+	"reflect"
+
+	// "regexp"
 	"strings"
+	"time"
+
+	"github.com/emersion/go-msgauth/dmarc"
+	"github.com/ethereum/go-ethereum/common"
+
+	// "github.com/microcosm-cc/bluemonday"
+	"github.com/miekg/dns"
+	"github.com/phires/go-guerrilla"
+	"github.com/phires/go-guerrilla/backends"
 	guerrillaMail "github.com/phires/go-guerrilla/mail"
 	"github.com/toorop/go-dkim"
-	"compress/gzip"
-	"time"
-	"reflect"
-	"crypto/aes"
-	"crypto/cipher"
-	"io"
-	"os/exec"
-	"github.com/emersion/go-msgauth/dmarc"
-	"net"
-	"github.com/miekg/dns"
-	"github.com/ethereum/go-ethereum/common"
-	"math/big"
-	"mime/multipart"
-	"sync"
-	"gomail/emailstorage"
+	"golang.org/x/net/html"
+
+	// "math/big"
 	"gomail/cmd/client"
 	c_config "gomail/cmd/client/pkg/config"
 	"gomail/config"
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	"gomail/emailstorage"
 	"gomail/services"
-)
+	"gomail/utils"
+	"mime/multipart"
+	"sync"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
+)
+const chunkSize = 1 * 1024
 // File to monitor
 const monitoredFile = "/home/ubuntu/gitMain" // Change to the path of your executable
 
 // Time interval for polling
 const pollingInterval = 3 * time.Second
+
+const maxDesLength = 200
 
 var lastModTime time.Time
 
@@ -61,10 +68,11 @@ type ParsedEmail struct {
 	Subject     string
 	Body        string       // Nội dung body
 	Attachments []Attachment // Mảng các attachment
-	ReplyTo 	string
-	MessageId   string
-	FromHeader  string
-	Html		string
+	Discription string
+	// ReplyTo 	string
+	// MessageId   string
+	// FromHeader  string
+	// Html		string
 }
 
 type Attachment struct {
@@ -72,65 +80,95 @@ type Attachment struct {
 	ContentID          string // Content-ID nếu có
 	ContentType        string // Content-Type của file (ví dụ: "application/pdf")
 	Data               []byte // Dữ liệu của attachment
+	FileName string
+	FileExtension string
+	FileHash [32]byte
+	ContentLength uint64
+	TotalChunks uint64
 }
 
-func sanitizeEmailHTML(html string) string {
-	// Tạo chính sách tùy chỉnh dựa trên Bluemonday UGCPolicy
-	policy := bluemonday.UGCPolicy()
+// func sanitizeEmailHTML(html string) string {
+// 	// Create a Bluemonday policy based on UGCPolicy
+// 	policy := bluemonday.UGCPolicy()
 
-	// HTML email cần giữ cấu trúc cơ bản
-	// policy.AllowDocType(true)
-	policy.AllowElements("html", "head", "body", "label", "input", "font", "main", "nav", "header", "footer", "kbd", "legend", "map", "title", "div", "span")
+// 	// Allow basic HTML email structure
+// 	policy.AllowElements("html", "head", "body", "label", "input", "font", "main", "nav", "header", "footer", "kbd", "legend", "map", "title", "div", "span")
 
-	// Cho phép các thẻ style cơ bản
-	policy.AllowAttrs("style").Globally()
+// 	// Allow basic style attributes globally
+// 	policy.AllowAttrs("style").Globally()
 
-	// Thuộc tính tùy chỉnh
-	policy.AllowAttrs("face", "size").OnElements("font")
-	policy.AllowAttrs("name", "content", "http-equiv").OnElements("meta")
-	policy.AllowAttrs("name", "data-id").OnElements("a")
-	policy.AllowAttrs("for").OnElements("label")
-	policy.AllowAttrs("type").OnElements("input")
-	policy.AllowAttrs("rel", "href").OnElements("link")
-	policy.AllowAttrs("topmargin", "leftmargin", "marginwidth", "marginheight", "yahoo").OnElements("body")
-	policy.AllowAttrs("xmlns").OnElements("html")
-	policy.AllowAttrs("style", "vspace", "hspace", "face", "bgcolor", "color", "border", "cellpadding", "cellspacing").Globally()
+// 	// Custom attributes for specific tags
+// 	policy.AllowAttrs("face", "size").OnElements("font")
+// 	policy.AllowAttrs("name", "content", "http-equiv").OnElements("meta")
+// 	policy.AllowAttrs("name", "data-id").OnElements("a")
+// 	policy.AllowAttrs("for").OnElements("label")
+// 	policy.AllowAttrs("type").OnElements("input")
+// 	policy.AllowAttrs("rel", "href").OnElements("link")
+// 	policy.AllowAttrs("topmargin", "leftmargin", "marginwidth", "marginheight", "yahoo").OnElements("body")
+// 	policy.AllowAttrs("xmlns").OnElements("html")
+// 	policy.AllowAttrs("class", "id", "style").OnElements("div", "span")
+// 	policy.AllowAttrs("style", "vspace", "hspace", "face", "bgcolor", "color", "border", "cellpadding", "cellspacing").Globally()
 
-	// Cho phép thẻ <div> và <span> có các thuộc tính cơ bản
-	policy.AllowAttrs("class", "id", "style").OnElements("div", "span")
+// 	// Support common email tags and attributes
+// 	policy.AllowAttrs("bgcolor", "color", "align").OnElements("basefont", "font", "hr", "table", "td")
+// 	policy.AllowAttrs("border").OnElements("img", "table", "basefont", "font", "hr", "td")
+// 	policy.AllowAttrs("cellpadding", "cellspacing", "valign", "halign").OnElements("table")
 
-	// Xóa các thẻ nguy hiểm
-	// policy.DisallowElements("script", "iframe")
+// 	// Handle <img> tags and inline images
+// 	policy.AllowAttrs("src", "alt", "width", "height", "style").OnElements("img")
 
-	// Loại bỏ thuộc tính sự kiện nguy hiểm
-	// policy.DisallowAttrs("onload", "onclick", "onerror", "onsubmit", "onfocus", "onblur").Globally()
+// 	// Allow `cid:` URIs specifically for inline images
+// 	policy.AllowAttrs("src").Matching(regexp.MustCompile(`^cid:[a-zA-Z0-9._%+-]+$`)).OnElements("img")
 
-	// Hỗ trợ các thẻ email thường dùng
-	policy.AllowAttrs("bgcolor", "color", "align").OnElements("basefont", "font", "hr", "table", "td")
-	policy.AllowAttrs("border").OnElements("img", "table", "basefont", "font", "hr", "td")
-	policy.AllowAttrs("cellpadding", "cellspacing", "valign", "halign").OnElements("table")
+// 	// Allow safe `data:image` URIs
+// 	policy.AllowAttrs("src").Matching(regexp.MustCompile(`^data:image\/(png|jpeg|gif|webp);base64,`)).OnElements("img")
 
-	// Thẻ <img>: chỉ cho phép src an toàn (Base64 hoặc domain đáng tin cậy)
-	// policy.DisallowAttrs("src").OnElements("img") // Loại bỏ src trước
+// 	// Allow `http://` and `https://` for external images (optional)
+// 	policy.AllowAttrs("src").Matching(regexp.MustCompile(`^https?://`)).OnElements("img")
 
-	policy.AllowAttrs("src").OnElements("img")
+// 	// Add "nofollow" and "target=_blank" to links
+// 	policy.RequireNoFollowOnLinks(true)
+// 	policy.RequireNoFollowOnFullyQualifiedLinks(true)
+// 	policy.AddTargetBlankToFullyQualifiedLinks(true)
 
-	// Regex để kiểm tra src hợp lệ (base64 hoặc các domain đáng tin cậy)
-	trustedImagePattern := regexp.MustCompile(`^(data:image/|https?://(?:m\.pro|payws\.com|payws\.net))`)
+// 	// Sanitize and return the cleaned HTML
+// 	return policy.Sanitize(html)
+// }
+func sanitizeEmailHTML(htmlString string) (string, error) {
+	// Parse the HTML string
+	doc, err := html.Parse(strings.NewReader(htmlString))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse HTML: %v", err)
+	}
 
-	// Kiểm tra giá trị src với regex
-	policy.AllowAttrs("src").Matching(trustedImagePattern).OnElements("img")
+	// Traverse the HTML and process nodes
+	var traverse func(*html.Node)
+	traverse = func(n *html.Node) {
+		// Check for <img> tags and process their src attributes
+		if n.Type == html.ElementNode && n.Data == "img" {
+			for i, attr := range n.Attr {
+				if attr.Key == "src" && strings.HasPrefix(attr.Val, "cid:") {
+					// Preserve cid attributes as-is
+					n.Attr[i].Val = attr.Val
+				}
+			}
+		}
 
-	// Hỗ trợ URI dạng data:image/
-	policy.AllowDataURIImages()
+		// Recursively process child nodes
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
+		}
+	}
 
-	// Đảm bảo link có "nofollow" và mở ở tab mới
-	policy.RequireNoFollowOnLinks(true)
-	policy.RequireNoFollowOnFullyQualifiedLinks(true)
-	policy.AddTargetBlankToFullyQualifiedLinks(true)
+	traverse(doc)
 
-	// Trả về nội dung HTML đã làm sạch
-	return policy.Sanitize(html)
+	// Render the sanitized HTML back to a string
+	var buffer bytes.Buffer
+	if err := html.Render(&buffer, doc); err != nil {
+		return "", fmt.Errorf("failed to render sanitized HTML: %v", err)
+	}
+
+	return buffer.String(), nil
 }
 
 // Hàm parseEmail trả về body và attachments
@@ -149,9 +187,9 @@ func parseEmail(emailData string) (*ParsedEmail, error) {
 
 	// Kiểm tra Content-Type để xác định kiểu email
 	contentType := msg.Header.Get("Content-Type")
-	replyTo := msg.Header.Get("Reply-To")
-	messageId := msg.Header.Get("Message-ID")
-	fromHeader := msg.Header.Get("From-Header")
+	// replyTo := msg.Header.Get("Reply-To")
+	// messageId := msg.Header.Get("Message-ID")
+	// fromHeader := msg.Header.Get("From-Header")
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Content-Type: %w", err)
@@ -160,9 +198,9 @@ func parseEmail(emailData string) (*ParsedEmail, error) {
 	// Tạo ParsedEmail để lưu thông tin
 	parsedEmail := &ParsedEmail{
 		Subject: subject,
-		ReplyTo : replyTo,
-		MessageId: messageId,
-		FromHeader: fromHeader,
+		// ReplyTo : replyTo,
+		// MessageId: messageId,
+		// FromHeader: fromHeader,
 	}
 
 	// Nếu email là multipart, xử lý các phần của nó
@@ -178,60 +216,97 @@ func parseEmail(emailData string) (*ParsedEmail, error) {
 	}
 
 	if mediaType == "text/html" {
-		parsedEmail.Html = string(bodyContent)
-	} else {
 		parsedEmail.Body = string(bodyContent)
 	}
 	return parsedEmail, nil
 }
 func parseMultipartEmail(multipartReader *multipart.Reader, parsedEmail *ParsedEmail) (*ParsedEmail, error) {
-	// Duyệt qua từng phần của email
+	// Iterate through each part of the email
 	for {
 		part, err := multipartReader.NextPart()
 		if err == io.EOF {
-			break // Kết thúc khi không còn phần nào
+			break // No more parts
 		}
 		if err != nil {
 			return nil, fmt.Errorf("error reading multipart part: %w", err)
 		}
 
-		// Lấy Content-Type và Content-Disposition
+		// Get Content-Type and Content-Disposition
 		contentType := part.Header.Get("Content-Type")
 		contentDisposition := part.Header.Get("Content-Disposition")
 
-		// Nếu là phần văn bản Body (text/plain hoặc text/html)
+		// Handle nested multipart/related
+		if strings.HasPrefix(contentType, "multipart/related") {
+			relatedReader := multipart.NewReader(part, getBoundary(contentType))
+			_, err := parseMultipartEmail(relatedReader, parsedEmail)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing multipart/related: %w", err)
+			}
+			continue
+		}
+
+		// Handle text parts (text/plain or text/html)
 		if strings.HasPrefix(contentType, "text/") {
 			bodyContent, err := io.ReadAll(part)
 			if err != nil {
 				return nil, fmt.Errorf("error reading body content: %w", err)
 			}
 
-			if strings.HasPrefix(contentType, "text/plain") {
+			if strings.HasPrefix(contentType, "text/plain") || strings.HasPrefix(contentType, "text/html"){
 				parsedEmail.Body = string(bodyContent)
-			}
-			// Ưu tiên lưu body HTML nếu có, nếu không lưu text/plain
-			if strings.HasPrefix(contentType, "text/html") || parsedEmail.Body == "" {
-				parsedEmail.Html = string(bodyContent)
+				if strings.HasPrefix(contentType, "text/html"){
+					extractBody, err := utils.ExtractBodyContent(string(bodyContent))
+					if err != nil {
+						return nil, fmt.Errorf("error reading attachment: %w", err)
+					}
+					parsedEmail.Discription = utils.GetMax200Characters(extractBody,maxDesLength)
+				}else{
+					parsedEmail.Discription = utils.GetMax200Characters(string(bodyContent),maxDesLength)
+				}
 			}
 		}
 
-		// Nếu là phần đính kèm (attachment)
-		if strings.HasPrefix(contentDisposition, "attachment") {
+		// Handle inline attachments (e.g., images in multipart/related)
+		if strings.HasPrefix(contentDisposition, "inline") || strings.HasPrefix(contentDisposition, "attachment") {
 			attachmentData, err := io.ReadAll(part)
 			if err != nil {
 				return nil, fmt.Errorf("error reading attachment: %w", err)
 			}
 
+			contentID := part.Header.Get("Content-ID")
+			// Extract file details
+			fileName := utils.ExtractFileName(contentDisposition)
+			fileExt := utils.ExtractFileExtension(fileName)
+			
+			fileHash := utils.GenerateFileHash(attachmentData)
+
+			contentLength := len(attachmentData)
+			totalChunks := utils.CalculateChunks(contentLength, chunkSize) // Assuming 1 MB chunks
+
 			parsedEmail.Attachments = append(parsedEmail.Attachments, Attachment{
 				ContentDisposition: contentDisposition,
-				ContentID:          part.Header.Get("Content-ID"),
+				ContentID:          contentID,
 				ContentType:        contentType,
 				Data:               attachmentData,
+				FileName:           fileName,
+				FileExtension:      fileExt,
+				FileHash:           fileHash,
+				ContentLength:      uint64(contentLength),
+				TotalChunks:        uint64(totalChunks),
 			})
 		}
 	}
 
 	return parsedEmail, nil
+}
+
+// Helper function to extract boundary from Content-Type
+func getBoundary(contentType string) string {
+	parts := strings.Split(contentType, "boundary=")
+	if len(parts) > 1 {
+		return strings.Trim(parts[1], `"`)
+	}
+	return ""
 }
 
 func logAllFunctions(obj interface{}) {
@@ -293,18 +368,6 @@ func restartApp() {
 	os.Exit(0)
 }
 
-// Utility function to wait for a transaction to be mined
-// func waitForTransaction(client *ethclient.Client, txHash common.Hash) {
-// 	for {
-// 		receipt, err := client.TransactionReceipt(context.Background(), txHash)
-// 		if err == nil && receipt != nil {
-// 			fmt.Printf("Transaction receipt: %+v\n", receipt)
-// 			break
-// 		}
-// 		time.Sleep(2 * time.Second)
-// 	}
-// }
-
 func isValidRecipientName(name string) bool {
 	return len(name) > 0 && len(name) <= 42 && !strings.ContainsAny(name, " !@#$%^&*()")
 }
@@ -328,16 +391,13 @@ func main() {
 		log.Fatal("can not load config", err)
 	}
 
-	ChainClient, err = client.NewStorageClient(
+	ChainClient, err = client.NewClient(
 		&c_config.ClientConfig{
 			Version_:                cconfig.MetaNodeVersion,
 			PrivateKey_:             cconfig.PrivateKey_,
 			ParentAddress:           cconfig.NodeAddress,
 			ParentConnectionAddress: cconfig.NodeConnectionAddress,
 			DnsLink_:                cconfig.DnsLink(),
-		},
-		[]common.Address{
-			common.HexToAddress(cconfig.MailFactoryAddress),
 		},
 	)
 
@@ -365,21 +425,29 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error occured while parse baccarat smart contract abi")
 	}
+	//
+	readerFileStorage, err := os.Open(cconfig.FileABIPath)
+	if err != nil {
+		log.Fatalf("Error occured while read baccarat abi")
+	}
+	defer readerMailStorage.Close()
 
+	abiFile, err := abi.JSON(readerFileStorage)
+	if err != nil {
+		log.Fatalf("Error occured while parse baccarat smart contract abi")
+	}
 	//
 	servs := services.NewSendTransactionService(
 		ChainClient,
 		&mailFactoryAbi,
 		common.HexToAddress(cconfig.MailFactoryAddress),
 		&abiMailStorage,
+		common.HexToAddress(cconfig.MailStorageAddress),
 		common.HexToAddress(cconfig.NotiAddress),
+		common.HexToAddress(cconfig.AdminAddress),
+		&abiFile,
+		common.HexToAddress(cconfig.FileAddress),
 	)
-	// Initialize the Ethereum client once
-	// ethClient, err = ethclient.Dial("https://your-ethereum-node-url")
-	// if err != nil {
-	// 	log.Fatalf("Failed to connect to Ethereum client: %v", err)
-	// 	return
-	// }
 
 	var emailStorageMap = sync.Map{}
 
@@ -545,7 +613,7 @@ func main() {
 				        }
 					}
 
-					password, err := generatePassword(recipient)
+					password, err := utils.GeneratePassword(recipient)
 
 					// log.Printf("Ok content: %s", e.Data.String())
 					log.Printf("Ok generating password: %s", password)
@@ -562,7 +630,7 @@ func main() {
 					}
 
 					// Lưu email đã mã hoá xuống ổ cứng tại từng server
-					err = saveEmailLocally(encryptedEmail)
+					err = utils.SaveEmailLocally(encryptedEmail)
 					if err != nil {
 						log.Printf("Error saving email locally: %v", err)
 						return backends.NewResult("554 Error saving email locally"), nil
@@ -573,11 +641,12 @@ func main() {
 						log.Fatalf("Error parsing email: %v", err)
 					}
 					subject := parsedEmail.Subject
-	                html := sanitizeEmailHTML(parsedEmail.Html)
-					replyTo := parsedEmail.ReplyTo
-					messageID := parsedEmail.MessageId
-					fromHeader := parsedEmail.FromHeader
-					encryptedBody, err := encryptEmail(html, password)
+	                // html := sanitizeEmailHTML(parsedEmail.Html)
+					body,err := sanitizeEmailHTML(parsedEmail.Body)
+					if err != nil {
+						log.Fatalf("Error sanitizeEmailHTML: %v", err)
+					}
+					encryptedBody, err := encryptEmail(body, password)
 					if err != nil {
 						log.Printf("Error encrypting email: %v", err)
 						return backends.NewResult("554 Error encrypting email"), nil
@@ -589,26 +658,97 @@ func main() {
 						return backends.NewResult("554 Error decrypting email"), nil
 					}
 
-					if (decryptedBody != html) {
+					if (decryptedBody != body) {
 						log.Printf("Error decrypting wrong email: %v", err)
 						return backends.NewResult("554 Error decrypting wrong email"), nil
 					}
 
-					createdAt := big.NewInt(time.Now().Unix())
+					createdAt := uint64(time.Now().Unix())
+					expireTime := createdAt + 30*24*60*60
 					// Step 4: Convert attachments into the required format
-					var files []emailstorage.File
+					var infos []emailstorage.Info
+					
 					for _, attachment := range parsedEmail.Attachments {
-						files = append(files, emailstorage.File{
+						info := emailstorage.Info{
+							Owner:common.HexToAddress(recipientName),
+							Hash:attachment.FileHash,
+							ContentLen:attachment.ContentLength,
+							TotalChunks:attachment.TotalChunks,
+							ExpireTime:expireTime ,
+							Name:attachment.FileName,
+							Ext:attachment.FileExtension,
+							Status: 0,
 							ContentDisposition: attachment.ContentDisposition,
-							ContentID:          attachment.ContentID,
-							ContentType:        attachment.ContentType,
-							Data:        attachment.Data,
-						})
-					}
-					log.Printf("receiving email, subject: %s, body: %s, files: %d, createdAt %d, encryptedBody: %s", subject, html, len(files), createdAt, hex.EncodeToString(encryptedBody))
+							ContentID: attachment.ContentID,
 
+						}
+						infos = append(infos,info)
+						
+					}
+
+					log.Printf("receiving email, subject: %s, body: %s, files: %d, createdAt %d, encryptedBody: %s", subject, body, createdAt, hex.EncodeToString(encryptedBody))
+					// Step 8: Call the pushFileInfos method
+					fileKeys,err := servs.PushFileInfos(infos)
+					if err != nil {
+						log.Printf("Failed to call pushFileInfos: %v", err)
+						return backends.NewResult("554 Error calling pushFileInfos"), nil
+					}
+					fileKeysKq , ok := fileKeys.([][32]byte)
+					if !ok {
+						log.Printf("Failed to parse fileKeys: %v", err)
+						return backends.NewResult("554 Error parse fileKeys"), nil
+					}
+					//Step 8: Call the uploadChunks method
+					// Chunk the file data into smaller pieces
+					 
+					for index, attachment := range parsedEmail.Attachments {
+						chunks, _ := utils.ChunkData(attachment.Data, chunkSize)
+						// if err != nil {
+						// 	log.Printf("Failed to parse UploadChunk: %v", err)
+						// 	return backends.NewResult(fmt.Errorf("failed to chunk file data: %w", err)), nil
+						// }
+
+						// Initialize the lastChunkHash as an empty hash
+						lastChunkHash := [32]byte{}
+						var chunkHashes []string
+						var chunkkq []string
+						fmt.Println("len chunks la:",len(chunks))
+						// Loop over each chunk and upload it to the contract
+						for _, bchunk := range chunks {
+							// bchunk ,err:= hex.DecodeString(chunk)
+							// Upload each chunk with its hash
+							lastChunkHash = utils.CalculateChunkHash(lastChunkHash, bchunk)
+							kq,err := servs.UploadChunk(fileKeysKq[index], bchunk, lastChunkHash)
+							if err != nil {
+								log.Printf("Failed to call UploadChunk: %v", err)
+								return backends.NewResult("554 Error calling UploadChunk"), nil
+							}
+							kqResult, ok := kq.(bool)
+							if !ok || !kqResult {
+								log.Printf("Failed to parse UploadChunk: %v", err)
+								return backends.NewResult("554 Error calling UploadChunk"), nil
+							}
+							chunkHashes = append(chunkHashes, hex.EncodeToString(lastChunkHash[:]))
+							chunkkq = append(chunkkq, hex.EncodeToString(bchunk))
+						}
+						// Write chunkHashes to a JSON file
+						err = writeHashesToFile("chunk_hashes.json", chunkHashes)
+						if err != nil {
+							log.Printf("Failed to write chunk hashes to file: %v", err)
+							return backends.NewResult("500 Internal Server Error"), nil
+						}
+						log.Println("File upload completed successfully.")
+						// Write chunkHashes to a JSON file
+						err = writeHashesToFile("chunkkq.json", chunkkq)
+						if err != nil {
+							log.Printf("Failed to write chunk hashes to file: %v", err)
+							return backends.NewResult("500 Internal Server Error"), nil
+						}
+						log.Println("File upload completed successfully.")
+					}
 					// Step 8: Call the CreateEmail method
-					hash, err := servs.CreateEmail(emailStorageAddress.(common.Address), sender, subject, fromHeader, replyTo, messageID, parsedEmail.Body, html, files, createdAt)
+					discription := parsedEmail.Discription
+					hash, err := servs.CreateEmail(emailStorageAddress.(common.Address), sender, subject, body, fileKeysKq, createdAt, discription)
 					if err != nil {
 						log.Printf("Failed to call CreateEmail: %v", err)
 						return backends.NewResult("554 Error calling CreateEmail"), nil
@@ -616,8 +756,6 @@ func main() {
 
 					// Step 9: Wait for the transaction to be mined
 					log.Printf("Transaction submitted: %s", hash.(common.Hash))
-					// waitForTransaction(ethClient, hash.(common.Hash))
-					// log.Println("Transaction mined successfully")
 
 					log.Printf("Email received and stored successfully: %+v", e)
 					return backends.NewResult("250 OK: Email received and stored successfully"), nil
@@ -797,43 +935,6 @@ func checkDKIM(email []byte, senderDomain string) (bool, error) {
 	return true, nil
 }
 
-// Hàm lưu email xuống ổ cứng tại server
-func saveEmailLocally(encryptedEmail []byte) error {
-	// Lưu email đã mã hoá xuống ổ cứng
-	filename := fmt.Sprintf("email_%d.txt.gz", time.Now().UnixNano())
-	filePath := fmt.Sprintf("./%s", filename)
-
-	file, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = file.Write(encryptedEmail)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Hàm tạo password bằng ECDSA
-func generatePassword(email string) (string, error) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return "", err
-	}
-
-	hash := sha256.Sum256([]byte(email))
-	r, s, err := ecdsa.Sign(rand.Reader, privateKey, hash[:])
-	if err != nil {
-		return "", err
-	}
-
-	password := fmt.Sprintf("%x%x", r, s)
-	return password, nil
-}
-
 // Hàm mã hoá email dạng gzip với password
 // func encryptEmail(email, password string) ([]byte, error) {
 // 	var buffer bytes.Buffer
@@ -924,3 +1025,15 @@ func decryptEmail(cipherText []byte, password string) (string, error) {
 	return string(decompressedData), nil
 }
 
+// Helper function to write hashes to a JSON file
+func writeHashesToFile(filename string, hashes []string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ") // Pretty-print JSON
+	return encoder.Encode(hashes)
+}

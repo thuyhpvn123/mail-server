@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -22,6 +23,7 @@ import (
 	pb "gomail/mtn/proto"
 	"gomail/mtn/types"
 	t_network "gomail/mtn/types/network"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type Client struct {
@@ -30,6 +32,7 @@ type Client struct {
 	mu                    sync.Mutex
 	accountStateChan      chan types.AccountState
 	receiptChan           chan types.Receipt
+	deviceKeyChan           chan types.LastDeviceKey
 	transactionErrorChan  chan types.TransactionError
 	transactionController client_types.TransactionController
 	subscribeSCAddresses  []common.Address
@@ -47,6 +50,7 @@ func NewClient(
 		clientContext:        clientContext,
 		accountStateChan:     make(chan types.AccountState, 1),
 		receiptChan:          make(chan types.Receipt, 1),
+		deviceKeyChan:          make(chan types.LastDeviceKey, 1),
 		transactionErrorChan: make(chan types.TransactionError, 1),
 	}
 
@@ -63,6 +67,7 @@ func NewClient(
 	clientContext.Handler = c_network.NewHandler(
 		client.accountStateChan,
 		client.receiptChan,
+		client.deviceKeyChan,
 		client.transactionErrorChan,
 	)
 	clientContext.SocketServer = p_network.NewSockerServer(
@@ -251,6 +256,132 @@ func (client *Client) SendTransactionWithCommission(
 	}
 }
 
+
+func (client *Client) SendTransactionWithDeviceKey(
+	toAddress common.Address,
+	amount *big.Int,
+	action pb.ACTION,
+	data []byte,
+	relatedAddress []common.Address,
+	maxGas uint64,
+	maxGasPrice uint64,
+	maxTimeUse uint64,
+) (types.Receipt, error) {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	// get account state
+	parentConn := client.clientContext.ConnectionsManager.ParentConnection()
+	if !parentConn.IsConnect() {
+		err := client.ReconnectToParent(parentConn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	client.clientContext.MessageSender.SendBytes(
+		parentConn,
+		command.GetAccountState,
+		client.clientContext.KeyPair.Address().Bytes(),
+	)
+
+	// lastDeviceKey := common.HexToHash(
+	// 	"0000000000000000000000000000000000000000000000000000000000000000",
+	// )
+	// newDeviceKey := common.HexToHash(
+	// 	"290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563",
+	// )
+
+	select {
+	case as := <-client.accountStateChan:
+
+		lastHash := as.LastHash()
+		pendingBalance := as.PendingBalance()
+		
+		// lastDeviceKey := common.HexToHash(string(as.Proto().GetDeviceKey()))
+		fmt.Println("lastDeviceKey:",lastHash)
+
+		err := client.clientContext.MessageSender.SendBytes(
+			parentConn,
+			"GetDeviceKey",
+			lastHash.Bytes(),
+			// make([]byte, 0),
+		)
+
+
+		if err != nil {
+			return nil, err
+		}
+
+		select {
+		case receiveDeviceKey := <-client.deviceKeyChan:
+				
+
+			TransactionHash := receiveDeviceKey.TransactionHash
+			
+			lastDeviceKey := common.HexToHash(
+				hex.EncodeToString(receiveDeviceKey.LastDeviceKeyFromServer),
+			)
+
+			// logger.DebugP("TransactionHash", hex.EncodeToString(TransactionHash))
+			// logger.DebugP("lastDeviceKey", lastDeviceKey)
+
+
+			rawNewDeviceKeyBytes := []byte( fmt.Sprintf("%s-%d", hex.EncodeToString(TransactionHash), time.Now().Unix()) )
+
+			rawNewDeviceKey := crypto.Keccak256(rawNewDeviceKeyBytes)
+
+			// logger.DebugP("rawNewDeviceKey", hex.EncodeToString(rawNewDeviceKey))
+
+			newDeviceKey := crypto.Keccak256Hash(rawNewDeviceKey)
+			
+
+			bRelatedAddresses := make([][]byte, len(relatedAddress))
+			for i, v := range relatedAddress {
+				bRelatedAddresses[i] = v.Bytes()
+			}
+			_, err = client.transactionController.SendTransactionWithDeviceKey(
+				lastHash,
+				toAddress,
+				pendingBalance,
+				amount,
+				maxGas,
+				maxGasPrice,
+				maxTimeUse,
+				action,
+				data,
+				bRelatedAddresses,
+				lastDeviceKey,
+				newDeviceKey,
+				nil,
+				rawNewDeviceKey,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			select {
+			case receipt := <-client.receiptChan:
+				return receipt, nil
+			case <-time.After(10 * time.Second):
+				logger.DebugP("Timeout recive receipt")
+				return nil, errors.New("err timeout when SendTransaction")
+			}
+
+		case <-time.After(10 * time.Second):
+			logger.DebugP("Timeout recive receipt GetDeviceKey")
+			return nil, errors.New("err timeout when GetDeviceKey")
+		}
+
+
+
+
+		
+	case <-time.After(10 * time.Second):
+		logger.DebugP("Timeout get account state")
+		return nil, errors.New("err timeout when SendTransaction")
+	}
+}
+
 func (client *Client) AccountState(address common.Address) (types.AccountState, error) {
 	client.mu.Lock()
 	defer client.mu.Unlock()
@@ -308,6 +439,7 @@ func NewStorageClient(
 	clientContext.Handler = c_network.NewHandler(
 		client.accountStateChan,
 		client.receiptChan,
+		client.deviceKeyChan,
 		client.transactionErrorChan,
 	)
 	clientContext.SocketServer = p_network.NewSockerServer(
@@ -319,7 +451,7 @@ func NewStorageClient(
 		config.DnsLink(),
 	)
 	// #debug
-	parentConn.SetRealConnAddr("192.168.1.253:7101")
+	// parentConn.SetRealConnAddr("192.168.1.253:7101")
 
 	err := parentConn.Connect()
 	if err != nil {

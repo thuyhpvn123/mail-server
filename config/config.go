@@ -7,6 +7,7 @@ import (
 )
 
 type AppConfig struct {
+	AdminAddress string
 	StorageDatabaseURL string
 
 	PrivateKey_     string
@@ -20,7 +21,10 @@ type AppConfig struct {
 
 	MailFactoryAddress    string
 	MailFactoryABIPath    string
+	MailStorageAddress	  string
 	MailStorageABIPath    string
+	FileAddress string
+	FileABIPath string
 
 	NotiAddress string
 	

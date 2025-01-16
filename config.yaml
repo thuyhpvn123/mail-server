@@ -1,5 +1,5 @@
 
-Address: "B50b908fFd42d2eDb12b325e75330c1AaAf35dc0" # Admin Address
+AdminAddress: "B50b908fFd42d2eDb12b325e75330c1AaAf35dc0" # Admin Address
 PrivateKey_: "068ab5318764afcaa90089c3bbe54bfab7c472dffc9cf4abf5ab3024b2111228"
 MetaNodeVersion: "0.0.1" 
 
@@ -9,14 +9,17 @@ NodeConnectionAddress: "node"
 StorageAddress: "0xda7284faC5E804F8b9d71Aa39310f0f86776b51d"
 StorageConnectionAddress: "storage"
 
-MailFactoryAddress: "0x2dffb8f9C0904FCe2452F8B355861F763A044B53"  #  Address
+MailFactoryAddress: "0x1dE832DE0c04258D2B5eA92D44d82dDbc9dAaf27"  #  Address
 MailFactoryABIPath: "./sc/src_mailFactory_sol_FactoryMail.abi"
+MailStorageAddress: "0x820AF126779981C24bB0b51afc4ba55d66dB15F6"
 MailStorageABIPath: "./sc/src_mailStorage_sol_EmailStorage.abi"
+FileAddress: "0x675A51eb0fC06eF2c0A694f4Ba783bf29d97CE1B"
+FileABIPath: "./sc/file.abi"
 
-NotiAddress: "1d6debe27922f2e283d0f7742c6350c64202a706"  #  Address
+NotiAddress: "7aeb12250f8f5af80ae3a8b1abfde6570a624f60"  #  Address
 
-DnsLink_: "http://192.168.1.253:7080/api/dns/connection-address/"
+DnsLink_: "http://127.0.0.1:7080/api/dns/connection-address/"
 
-OwnerUrl: "http://192.168.1.253:8188/api/v1/names/owner/"
+OwnerUrl: "http://127.0.0.1:8188/api/v1/names/owner/"
 API_PORT: ":8999"
 
