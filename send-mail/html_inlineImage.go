@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 
 	// "encoding/base64"
 	"fmt"
@@ -20,8 +22,8 @@ import (
 func main() {
 	from := "your-email@example.com"
 	// to := []string{"ooooo@payws.com"}
-	// to := []string{"bbbb@payws.com"}
-	to := []string{"aaabbb@payws.com"}
+	to := []string{"bbbb@payws.com"}
+	// to := []string{"aaabbb@payws.com"}
 
 	smtpHost := "127.0.0.1"
 	smtpPort := "2025"
@@ -71,22 +73,22 @@ func main() {
 		log.Fatalf("Failed to add inline image1: %v", err)
 	}
 
-	// // Add second inline image (Referenced by CID)
-	// err = addInlineImage(relatedMP, "image2", "file3.jpg")
-	// if err != nil {
-	// 	log.Fatalf("Failed to add inline image2: %v", err)
-	// }
+	// Add second inline image (Referenced by CID)
+	err = addInlineImage(relatedMP, "image2", "file3.jpg")
+	if err != nil {
+		log.Fatalf("Failed to add inline image2: %v", err)
+	}
 
 	_ = relatedMP.Close()
 
-	// // Attach multiple files
-	// files := []string{"file1.txt"}
-	// for _, file := range files {
-	// 	err := addAttachment(mixedWriter, file)
-	// 	if err != nil {
-	// 		log.Fatalf("Failed to attach file %s: %v", file, err)
-	// 	}
-	// }
+	// Attach multiple files
+	files := []string{"file4.jpeg"}
+	for _, file := range files {
+		err := addAttachment(mixedWriter, file)
+		if err != nil {
+			log.Fatalf("Failed to attach file %s: %v", file, err)
+		}
+	}
 
 	_ = mixedWriter.Close()
 
@@ -144,85 +146,91 @@ func sendSMTPCommand(conn net.Conn, reader *bufio.Reader, cmd string) {
 		log.Fatalf("SMTP Error: %s", response)
 	}
 }
-// addInlineImage embeds an image inline using CID with hex encoding
 func addInlineImage(mpWriter *multipart.Writer, cid, filePath string) error {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+    file, err := os.Open(filePath)
+    if err != nil {
+        return fmt.Errorf("failed to open file: %v", err)
+    }
+    defer file.Close()
 
-	partHeader := map[string][]string{
-		"Content-Type":              {"image/png"},
-		"Content-Disposition":       {`inline; filename="` + filepath.Base(filePath) + `"`},
-		"Content-ID":                {"<" + cid + ">"},
-		"Content-Transfer-Encoding": {"x-hex"},
-	}
+    data, err := io.ReadAll(file)
+    if err != nil {
+        return fmt.Errorf("failed to read file: %v", err)
+    }
+	writeDataToFile("data12_sendmail",hex.EncodeToString(data))
+    base64Data := base64.StdEncoding.EncodeToString(data)
 
-	imageWriter, err := mpWriter.CreatePart(partHeader)
-	if err != nil {
-		return err
-	}
+    partHeader := map[string][]string{
+        "Content-Type":              {"image/png"},
+        "Content-Disposition":       {`inline; filename="` + filepath.Base(filePath) + `"`},
+        "Content-ID":                {"<" + cid + ">"},
+        "Content-Transfer-Encoding": {"base64"},
+    }
 
-	// Convert file content to hexadecimal
-	buffer := make([]byte, 1024) // 4KB chunk size
-	for {
-		n, err := file.Read(buffer)
-		fmt.Println("da chuyen email total chunk:",n)
-		if err != nil && err != io.EOF {
-			return err
-		}
-		if n == 0 {
-			break
-		}
-		// hexData := fmt.Sprintf("%x", buffer[:n])
-		chunkData := buffer[:n]
-		hexData := hex.EncodeToString(chunkData)
-		_, err = imageWriter.Write([]byte(hexData))
-		if err != nil {
-			return err
-		}
-	}
-	
-	return nil
+    imageWriter, err := mpWriter.CreatePart(partHeader)
+    if err != nil {
+        return fmt.Errorf("failed to create MIME part: %v", err)
+    }
+
+    _, err = imageWriter.Write([]byte(base64Data))
+    if err != nil {
+        return fmt.Errorf("failed to write base64 data: %v", err)
+    }
+
+    return nil
 }
-
-// addAttachment adds a file as an attachment using hex encoding
-func addAttachment(mpWriter *multipart.Writer, filePath string) error {
-	file, err := os.Open(filePath)
+func writeDataToFile(filename string, data string) error {
+	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ") // Pretty-print JSON
+	return encoder.Encode(data)
+}
+// addAttachment adds a file as an attachment using Base64 encoding
+func addAttachment(mpWriter *multipart.Writer, filePath string) error {
+	// Open the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %v", err)
+	}
+	defer file.Close()
+
+	// Prepare the MIME part headers
 	partHeader := map[string][]string{
 		"Content-Type":              {`application/octet-stream`},
 		"Content-Disposition":       {fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(filePath))},
-		"Content-Transfer-Encoding": {"x-hex"},
+		"Content-Transfer-Encoding": {"base64"},
 	}
 
+	// Create a part for the attachment
 	attachmentWriter, err := mpWriter.CreatePart(partHeader)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create MIME part: %v", err)
 	}
 
-	// Convert file content to hexadecimal
+	// Encode the file content in Base64 and write it
 	buffer := make([]byte, 4096) // 4KB chunk size
+	base64Encoder := base64.NewEncoder(base64.StdEncoding, attachmentWriter)
+	defer base64Encoder.Close()
+
 	for {
 		n, err := file.Read(buffer)
 		if err != nil && err != io.EOF {
-			return err
+			return fmt.Errorf("failed to read file: %v", err)
 		}
-		if n == 0 {
+		if n == 0 { // End of file
 			break
 		}
-		hexData := fmt.Sprintf("%x", buffer[:n])
-		_, err = attachmentWriter.Write([]byte(hexData))
+
+		_, err = base64Encoder.Write(buffer[:n])
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to write Base64 data: %v", err)
 		}
 	}
 
 	return nil
 }
-

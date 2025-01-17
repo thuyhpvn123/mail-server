@@ -6,6 +6,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -279,15 +280,19 @@ func parseMultipartEmail(multipartReader *multipart.Reader, parsedEmail *ParsedE
 			fileExt := utils.ExtractFileExtension(fileName)
 			
 			fileHash := utils.GenerateFileHash(attachmentData)
+			decodedData, err := base64.StdEncoding.DecodeString(string(attachmentData))
 
-			contentLength := len(attachmentData)
+			contentLength := len(decodedData)
+			fmt.Println("contentLength la:",decodedData)
 			totalChunks := utils.CalculateChunks(contentLength, chunkSize) // Assuming 1 MB chunks
-
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode base64 data: %v", err)
+			}
 			parsedEmail.Attachments = append(parsedEmail.Attachments, Attachment{
 				ContentDisposition: contentDisposition,
 				ContentID:          contentID,
 				ContentType:        contentType,
-				Data:               attachmentData,
+				Data:               decodedData,
 				FileName:           fileName,
 				FileExtension:      fileExt,
 				FileHash:           fileHash,
@@ -702,7 +707,14 @@ func main() {
 					// Chunk the file data into smaller pieces
 					 
 					for index, attachment := range parsedEmail.Attachments {
+						// decodedData, err := base64.StdEncoding.DecodeString(string(attachment.Data))
+						// if err != nil {
+						// 	return nil, fmt.Errorf("failed to decode base64 data: %v", err)
+						// }
 						chunks, _ := utils.ChunkData(attachment.Data, chunkSize)
+					
+						writeDataToFile("./data12",hex.EncodeToString(attachment.Data))
+
 						// if err != nil {
 						// 	log.Printf("Failed to parse UploadChunk: %v", err)
 						// 	return backends.NewResult(fmt.Errorf("failed to chunk file data: %w", err)), nil
@@ -715,6 +727,7 @@ func main() {
 						fmt.Println("len chunks la:",len(chunks))
 						// Loop over each chunk and upload it to the contract
 						for _, bchunk := range chunks {
+							fmt.Println("len bchunk la:",len(bchunk))
 							// bchunk ,err:= hex.DecodeString(chunk)
 							// Upload each chunk with its hash
 							lastChunkHash = utils.CalculateChunkHash(lastChunkHash, bchunk)
@@ -1036,4 +1049,16 @@ func writeHashesToFile(filename string, hashes []string) error {
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ") // Pretty-print JSON
 	return encoder.Encode(hashes)
+}
+// Helper function to write hashes to a JSON file
+func writeDataToFile(filename string, data string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ") // Pretty-print JSON
+	return encoder.Encode(data)
 }
