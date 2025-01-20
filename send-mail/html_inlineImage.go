@@ -22,8 +22,8 @@ import (
 func main() {
 	from := "your-email@example.com"
 	// to := []string{"ooooo@payws.com"}
-	to := []string{"bbbb@payws.com"}
-	// to := []string{"aaabbb@payws.com"}
+	// to := []string{"bbbb@payws.com"}
+	to := []string{"nguyenhuytam234@payws.com"}
 
 	smtpHost := "127.0.0.1"
 	smtpPort := "2025"
