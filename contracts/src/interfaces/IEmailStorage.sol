@@ -18,6 +18,9 @@ struct Info {
     string name;
     string ext;
     FileStatus status;
+    string contentDisposition;
+    string contentID;
+
 }
 
 struct FileProgress {
@@ -37,6 +40,7 @@ struct EmailInfo {
     uint64 createdAt; 
     uint8 isRead;
     bytes32[] fileKeys;
+    string discription;
 }
 struct Email {
     EmailInfo info;
