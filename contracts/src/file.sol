@@ -28,6 +28,16 @@ contract Files {
     function setService(address _service) external onlyOwner {
         service = _service;
     }
+    
+    function pushFileInfos(
+        Info[] memory infos
+    )external returns(bytes32[] memory){
+        bytes32[] memory keys = new bytes32[](infos.length);
+        for(uint256 i; i< infos.length; i++){
+            keys[i] = pushFileInfo(infos[i]);
+        }
+        return keys;
+    }
 
     function pushFileInfo(Info memory info) public returns (bytes32 fileKey) {
         require(info.expireTime > block.timestamp + 1 days, "Expire time must be at least 1 day in the future");

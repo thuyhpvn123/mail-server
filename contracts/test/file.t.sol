@@ -39,7 +39,41 @@ contract FilesTest is Test {
         assertEq(storedInfo.ext, "txt");
         assertEq(storedInfo.contentLen, 1024);
     }
+    function testPushFileInfos() public {
+        Info[] memory infos = new Info[](2);
+        
+        infos[0] = Info({
+            owner: address(this),
+            hash: keccak256("file1"),
+            contentLen: 1024,
+            totalChunks: 4,
+            expireTime: uint64(block.timestamp + 2 days),
+            name: "file1",
+            ext: "txt",
+            status: FileStatus.Processing,
+            contentDisposition: "inline",
+            contentID: "cid1"
+        });
+        
+        infos[1] = Info({
+            owner: address(this),
+            hash: keccak256("file2"),
+            contentLen: 2048,
+            totalChunks: 8,
+            expireTime: uint64(block.timestamp + 3 days),
+            name: "file2",
+            ext: "jpg",
+            status: FileStatus.Processing,
+            contentDisposition: "attachment",
+            contentID: "cid2"
+        });
+        
+        bytes32[] memory fileKeys = files.pushFileInfos(infos);
 
+        assertEq(fileKeys.length, 2);
+        assertTrue(fileKeys[0] != bytes32(0));
+        assertTrue(fileKeys[1] != bytes32(0));
+    }
     function testUploadChunk() public {
         Info memory info = Info({
             owner: owner,
@@ -125,6 +159,41 @@ contract FilesTest is Test {
             (info)
         );
         console.log("pushFileInfo:");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );  
+        Info[] memory infos = new Info[](2);
+        infos[0] = Info({
+            owner: address(this),
+            hash: keccak256("file1"),
+            contentLen: 1024,
+            totalChunks: 4,
+            expireTime: uint64(1739935067 + 2 days),
+            name: "file1",
+            ext: "txt",
+            status: FileStatus.Processing,
+            contentDisposition: "inline",
+            contentID: "cid1"
+        });
+        
+        infos[1] = Info({
+            owner: address(this),
+            hash: keccak256("file2"),
+            contentLen: 2048,
+            totalChunks: 8,
+            expireTime: uint64(1739935067 + 3 days),
+            name: "file2",
+            ext: "jpg",
+            status: FileStatus.Processing,
+            contentDisposition: "attachment",
+            contentID: "cid2"
+        });
+        bytesCodeCall = abi.encodeCall(
+        files.pushFileInfos,
+            (infos)
+        );
+        console.log("pushFileInfos:");
         console.logBytes(bytesCodeCall);
         console.log(
             "-----------------------------------------------------------------------------"
