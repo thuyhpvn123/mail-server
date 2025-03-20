@@ -91,7 +91,6 @@ contract Files {
         require(file.info.owner == msg.sender, "Caller is not the owner");
         require(file.progress.processedLength + chunkData.length <= file.info.contentLen, "Chunk exceeds file length");
         require(file.info.status == FileStatus.Processing, "File is not being processed");
-        
         bytes32 computedChunkHash = keccak256(abi.encodePacked(file.progress.lastChunkHash, chunkData));
         require(computedChunkHash == chunkHash, "Chunk hash mismatch");
 
@@ -99,13 +98,13 @@ contract Files {
         file.chunks[file.progress.processedChunks] = chunkData;
         file.progress.processedChunks++;
         file.progress.processedLength += uint64(chunkData.length);
+        emit ChunkUploaded(fileKey, file.progress.processedChunks - 1);
 
         if (file.info.contentLen == file.progress.processedLength || file.progress.processedChunks == file.info.totalChunks) {
+
             file.info.status = FileStatus.Active;
             delete file.progress;
         }
-        
-        emit ChunkUploaded(fileKey, file.progress.processedChunks - 1);
     }
 
     function lockFile(bytes32 fileKey) external {

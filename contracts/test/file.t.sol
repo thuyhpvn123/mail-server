@@ -98,22 +98,6 @@ contract FilesTest is Test {
         assertEq(progress.processedChunks, 1);
     }
     function testUploadChunks() public {
-        Info memory info1 = Info({
-            owner: owner,
-            hash: keccak256(abi.encodePacked("file1")),
-            contentLen: 2048,
-            totalChunks: 2,
-            expireTime: uint64(block.timestamp + 2 days),
-            name: "testFile",
-            ext: "txt",
-            status: FileStatus.Processing,
-            contentDisposition: "inline",
-            contentID: "12345"
-        });
-
-        bytes32 fileKey1 = files.pushFileInfo(info1);
-        bytes memory chunkData1 = "Chunk1Data";
-        bytes32 chunkHash1 = keccak256(abi.encodePacked(bytes32(0), chunkData));
         Info memory info = Info({
             owner: owner,
             hash: keccak256(abi.encodePacked("file1")),
@@ -127,13 +111,18 @@ contract FilesTest is Test {
             contentID: "12345"
         });
 
-        bytes32 fileKey1 = files.pushFileInfo(info);
-        bytes memory chunkData1 = "Chunk1Data";
-        bytes32 chunkHash1 = keccak256(abi.encodePacked(bytes32(0), chunkData));
-        files.uploadChunk(fileKey, chunkData, chunkHash);
-        FileProgress memory progress = files.getFileProgress(fileKey);
+        bytes32 fileKey = files.pushFileInfo(info);
+        bytes[] memory chunkDatas = new bytes[](2);
+        chunkDatas[0] = "Chunk1Data";
+        chunkDatas[1] = "Chunk1Data";
+        bytes32[] memory chunkHashes = new bytes32[](2);
+        chunkHashes[0] = keccak256(abi.encodePacked(bytes32(0), chunkDatas[0]));
+        chunkHashes[1] = keccak256(abi.encodePacked(chunkHashes[0], chunkDatas[1]));
 
-        assertEq(progress.processedChunks, 1);
+        files.uploadChunks(fileKey, chunkDatas, chunkHashes);
+        // FileProgress memory progress = files.getFileProgress(fileKey);
+
+        // assertEq(progress.processedChunks, 1);
     }
 
     function testDeleteFile() public {

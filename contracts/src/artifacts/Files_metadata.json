@@ -711,18 +711,18 @@
 			"bytecodeHash": "ipfs"
 		},
 		"optimizer": {
-			"enabled": false,
-			"runs": 200
+			"enabled": true,
+			"runs": 0
 		},
 		"remappings": []
 	},
 	"sources": {
 		"contracts/src/file.sol": {
-			"keccak256": "0x913a5929db309b5f6ba0047599f747793fed344435548748a8df5624d9828936",
+			"keccak256": "0x155109496867fc495db4b722fff8619336edbbd29003d2c5dc6e38d70b98ceec",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://436fc0faf58bebc796ff6e11407d9563782f1b41ce0ad4dab11a104fd98294d6",
-				"dweb:/ipfs/QmefHpDiPP5LM5Cehbug8Tn48ZGGkPAbgZVN2TW71AUKL3"
+				"bzz-raw://c533c1e0741b6680ead4ec4e5b95d355b83c75c904aa92d18322330f6893db3c",
+				"dweb:/ipfs/QmPe6XwTiuw84iyix41HBxtY3LyiJ82rFz2Uxi3EpqUP4S"
 			]
 		},
 		"contracts/src/interfaces/IEmailStorage.sol": {
