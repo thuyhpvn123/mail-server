@@ -78,10 +78,10 @@ contract Files {
         }
         return filekeys;
     }
-    function uploadChunks(bytes32[] memory fileKeys, bytes[] memory chunkDatas, bytes32[] memory chunkHashes) external {
-        require(fileKeys.length == chunkDatas.length && chunkHashes.length == chunkDatas.length,"length arrays should be equal" );
-        for(uint256 i; i<fileKeys.length; i++){
-            uploadChunk(fileKeys[i],chunkDatas[i], chunkHashes[i]);
+    function uploadChunks(bytes32 fileKey, bytes[] memory chunkDatas, bytes32[] memory chunkHashes) external {
+        require(chunkHashes.length == chunkDatas.length,"length arrays should be equal" );
+        for(uint256 i; i<chunkDatas.length; i++){
+            uploadChunk(fileKey,chunkDatas[i], chunkHashes[i]);
         }
     }
     function uploadChunk(bytes32 fileKey, bytes memory chunkData, bytes32 chunkHash) public {

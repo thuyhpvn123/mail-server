@@ -669,9 +669,9 @@
 			{
 				"inputs": [
 					{
-						"internalType": "bytes32[]",
-						"name": "fileKeys",
-						"type": "bytes32[]"
+						"internalType": "bytes32",
+						"name": "fileKey",
+						"type": "bytes32"
 					},
 					{
 						"internalType": "bytes[]",
@@ -718,11 +718,11 @@
 	},
 	"sources": {
 		"contracts/src/file.sol": {
-			"keccak256": "0x524aa04115aea70a777c46a5a520d9e7bc4dfbe28d067edc54eed08977b8f726",
+			"keccak256": "0x913a5929db309b5f6ba0047599f747793fed344435548748a8df5624d9828936",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://1625f9b95be556cf6c3243a484cc6c362b03395a9d034042ffae7e942a6eec1a",
-				"dweb:/ipfs/QmSiv8JZXtn4avrGYyRXDRFKgTuNJMAaYdLyQxXcifLXUG"
+				"bzz-raw://436fc0faf58bebc796ff6e11407d9563782f1b41ce0ad4dab11a104fd98294d6",
+				"dweb:/ipfs/QmefHpDiPP5LM5Cehbug8Tn48ZGGkPAbgZVN2TW71AUKL3"
 			]
 		},
 		"contracts/src/interfaces/IEmailStorage.sol": {
