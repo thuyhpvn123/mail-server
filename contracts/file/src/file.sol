@@ -8,7 +8,6 @@ contract Files {
     event FileLocked(bytes32 indexed fileKey);
 
     mapping(bytes32 => FileInfo) public mKeyToFileInfo;
-    mapping(string => bytes32) public mNameToFileKey;
     address public service;
     address public owner;
 
@@ -42,10 +41,11 @@ contract Files {
 
     function pushFileInfo(Info memory info) public returns (bytes32 fileKey) {
         require(info.expireTime > block.timestamp + 1 days, "Expire time must be at least 1 day in the future");
+
         fileKey = keccak256(
             abi.encodePacked(info.contentLen, info.expireTime, info.hash, info.name, info.ext, block.timestamp)
         );
-        mNameToFileKey[info.name] = fileKey;
+        
         require(mKeyToFileInfo[fileKey].info.hash == 0, "File already exists");
 
         mKeyToFileInfo[fileKey].info = Info({
@@ -70,21 +70,8 @@ contract Files {
         emit FileAdded(fileKey, info.name, info.contentLen);
         return fileKey;
     }
-    
-    function getFileKeyFromName(string[] memory names) view external returns(bytes32[] memory ){
-        bytes32[] memory filekeys = new bytes32[](names.length);
-        for (uint256 i;i < names.length; i++){
-            filekeys[i] = mNameToFileKey[names[i]];
-        }
-        return filekeys;
-    }
-    function uploadChunks(bytes32[] memory fileKeys, bytes[] memory chunkDatas, bytes32[] memory chunkHashes) external {
-        require(fileKeys.length == chunkDatas.length && chunkHashes.length == chunkDatas.length,"length arrays should be equal" );
-        for(uint256 i; i<fileKeys.length; i++){
-            uploadChunk(fileKeys[i],chunkDatas[i], chunkHashes[i]);
-        }
-    }
-    function uploadChunk(bytes32 fileKey, bytes memory chunkData, bytes32 chunkHash) public {
+
+    function uploadChunk(bytes32 fileKey, bytes memory chunkData, bytes32 chunkHash) external {
         require(chunkData.length > 0 && chunkData.length <= 10 * 1024, "Invalid chunk size");
         
         FileInfo storage file = mKeyToFileInfo[fileKey];

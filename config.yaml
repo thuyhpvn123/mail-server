@@ -9,11 +9,11 @@ NodeConnectionAddress: "node"
 StorageAddress: "0xda7284faC5E804F8b9d71Aa39310f0f86776b51d"
 StorageConnectionAddress: "storage"
 
-MailFactoryAddress: "0x1dE832DE0c04258D2B5eA92D44d82dDbc9dAaf27"  #  Address
+MailFactoryAddress: "0xaC84b79C087F4dF7A53232f901aDa76eF27cA142"  #  Address
 MailFactoryABIPath: "./sc/src_mailFactory_sol_FactoryMail.abi"
-MailStorageAddress: "0x820AF126779981C24bB0b51afc4ba55d66dB15F6"
+MailStorageAddress: "0x41B28Bee34b81635749f5343dD8f4Cb0001e8809"
 MailStorageABIPath: "./sc/src_mailStorage_sol_EmailStorage.abi"
-FileAddress: "0x675A51eb0fC06eF2c0A694f4Ba783bf29d97CE1B"
+FileAddress: "0x88c2B7cCCB5FF2EbbFCBED4045066212E936412f"
 FileABIPath: "./sc/file.abi"
 
 NotiAddress: "7aeb12250f8f5af80ae3a8b1abfde6570a624f60"  #  Address

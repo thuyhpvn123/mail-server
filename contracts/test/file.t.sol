@@ -198,6 +198,19 @@ contract FilesTest is Test {
         console.log(
             "-----------------------------------------------------------------------------"
         );  
+        //getFileKeyFromName
+        string[] memory names = new string[](1);
+        names[0] = "image_1742354760424.png";
+        bytesCodeCall = abi.encodeCall(
+        files.getFileKeyFromName,
+            (names)
+        );
+        console.log("getFileKeyFromName:");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );  
+
     }
 
 }
