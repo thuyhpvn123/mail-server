@@ -3,8 +3,8 @@ package client_context
 import (
 	"gomail/cmd/client/pkg/config"
 	client_types "gomail/cmd/client/types"
-	"gomail/mtn/bls"
-	"gomail/mtn/types/network"
+	"gomail/pkg/bls"
+	"gomail/types/network"
 )
 
 type ClientContext struct {

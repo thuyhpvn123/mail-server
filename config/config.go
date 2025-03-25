@@ -7,32 +7,37 @@ import (
 )
 
 type AppConfig struct {
-	AdminAddress string
+	AdminAddress       string
 	StorageDatabaseURL string
 
 	PrivateKey_     string
 	MetaNodeVersion string
 
-	NodeAddress           string
+	ParentAddress         string
 	NodeConnectionAddress string
 
 	StorageAddress           string
 	StorageConnectionAddress string
 
-	MailFactoryAddress    string
-	MailFactoryABIPath    string
-	MailStorageAddress	  string
-	MailStorageABIPath    string
-	FileAddress string
-	FileABIPath string
+	MailFactoryAddress string
+	MailFactoryABIPath string
+	MailStorageAddress string
+	MailStorageABIPath string
+	FileAddress        string
+	FileABIPath        string
 
 	NotiAddress string
-	
+
 	DnsLink_ string
 
 	OwnerUrl string
-	
-	API_PORT string
+
+	API_PORT                string
+	ParentConnectionAddress string
+	ParentConnectionType    string
+	ConnectionAddress_      string 
+	ChainId                 uint64 
+
 }
 
 var Config *AppConfig

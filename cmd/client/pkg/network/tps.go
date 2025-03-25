@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"gomail/cmd/client/command"
-	"gomail/mtn/logger"
-	pb "gomail/mtn/proto"
-	"gomail/mtn/receipt"
-	"gomail/mtn/state"
-	"gomail/mtn/types"
-	"gomail/mtn/types/network"
+	"gomail/pkg/logger"
+	pb "gomail/pkg/proto"
+	"gomail/pkg/receipt"
+	"gomail/pkg/state"
+	"gomail/types"
+	"gomail/types/network"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type TpsHandler struct {
@@ -69,7 +70,7 @@ func (h *TpsHandler) handleAccountState(request network.Request) (err error) {
 	if err != nil {
 		return err
 	}
-	logger.Debug(fmt.Sprintf("Receive Account state: \n%v", accountState))
+	// logger.Debug(fmt.Sprintf("Receive Account state: \n%v", accountState))
 	h.accountStateChan <- accountState
 	return nil
 }

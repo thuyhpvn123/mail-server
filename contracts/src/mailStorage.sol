@@ -58,7 +58,8 @@ contract EmailStorage {
         string memory subject,
         string memory body,
         bytes32[] memory _fileKeys,
-        uint64 createdAt
+        uint64 createdAt,
+        string memory discription
     ) external onlyService returns(uint256) {
         // Store the email
         Email storage  newEmail = mIDToEmail[emailCounter];
@@ -66,6 +67,7 @@ contract EmailStorage {
         newEmail.info.from = sender;
         newEmail.body = body;
         newEmail.info.createdAt = createdAt;
+        newEmail.info.discription = discription;
         // Add files to the email
         for (uint256 i = 0; i < _fileKeys.length; i++) {
            newEmail.info.fileKeys.push(_fileKeys[i]);

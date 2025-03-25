@@ -5,10 +5,11 @@ import (
 
 	"gomail/cmd/client/pkg/config"
 	p_network "gomail/cmd/client/pkg/network"
-	"gomail/mtn/bls"
-	"gomail/mtn/network"
-	"gomail/mtn/types"
-	t_network "gomail/mtn/types/network"
+
+	"gomail/pkg/bls"
+	"gomail/pkg/network"
+	"gomail/types"
+	t_network "gomail/types/network"
 )
 
 type TpsClient struct {
@@ -31,7 +32,7 @@ func NewTpsClient(config *config.TpsConfig) *TpsClient {
 
 	handler := p_network.NewTpsHandler(client.AccountStateChan, client.receiptChan)
 
-	client.socketServer = network.NewSockerServer(
+	client.socketServer = network.NewSocketServer(
 		client.Keypair,
 		client.connectionsManager,
 		handler,
@@ -41,7 +42,7 @@ func NewTpsClient(config *config.TpsConfig) *TpsClient {
 	)
 
 	parentConnection := network.NewConnection(
-		common.HexToAddress(config.NodeAddress),
+		common.HexToAddress(config.ParentAddress),
 		"",
 		config.DnsLink_,
 	)

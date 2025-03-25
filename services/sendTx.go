@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
-	pb "gomail/mtn/proto"
-	"gomail/mtn/transaction"
-	"gomail/mtn/logger"
+	pb "gomail/pkg/proto"
+	"gomail/pkg/transaction"
+	"gomail/pkg/logger"
 
 	"gomail/cmd/client"
 
@@ -15,8 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	e_common "github.com/ethereum/go-ethereum/common"
 	// "gomail/emailstorage"
-	rc "gomail/mtn/receipt"
-	"gomail/mtn/types"
+	rc "gomail/pkg/receipt"
+	"gomail/types"
 	"gomail/emailstorage"
 )
 
@@ -51,6 +51,7 @@ type sendTransactionService struct {
 	adminAddress e_common.Address
 	fileAbi *abi.ABI
 	fileAddress e_common.Address
+	fromAddress e_common.Address
 }
 
 func NewSendTransactionService(
@@ -63,6 +64,7 @@ func NewSendTransactionService(
 	adminAddress e_common.Address,
 	fileAbi *abi.ABI,
 	fileAddress e_common.Address,
+	fromAddress e_common.Address,
 ) SendTransactionService {
 	return &sendTransactionService{
 		chainClient:        chainClient,
@@ -74,6 +76,7 @@ func NewSendTransactionService(
 		adminAddress:adminAddress,
 		fileAbi: fileAbi,
 		fileAddress: fileAddress,
+		fromAddress: fromAddress,
 	}
 }
 
@@ -87,6 +90,7 @@ func (h *sendTransactionService) CreateEmail(
 	discription string,
 ) (interface{}, error) {
 	var result interface{}
+	fmt.Println("sender la:",sender)
 	input, err := h.mailStorageAbi.Pack(
 		"createEmail",
 		sender,
@@ -119,6 +123,7 @@ func (h *sendTransactionService) CreateEmail(
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
 	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+		h.fromAddress,
 		mailStorageAdd,
 		big.NewInt(0),
 		4,
@@ -172,6 +177,7 @@ func (h *sendTransactionService) GetEmailStorage(add string) (interface{}, error
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
 	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+		h.fromAddress,
 		h.mailFactoryAddress,
 		big.NewInt(0),
 		4,
@@ -224,6 +230,7 @@ func (h *sendTransactionService) PushFileInfos(
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
 	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+		h.fromAddress,
 		h.fileAddress,
 		big.NewInt(0),
 		4,
@@ -280,6 +287,7 @@ func (h *sendTransactionService) UploadChunk(
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
 	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+		h.fromAddress,
 		h.fileAddress,
 		big.NewInt(0),
 		4,
@@ -291,14 +299,14 @@ func (h *sendTransactionService) UploadChunk(
 	)
 	fmt.Println("rc uploadChunk:", receipt)
 	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
-		var kq bool
-		err = h.fileAbi.UnpackIntoInterface(&kq, "uploadChunk", receipt.Return())
-		if err != nil {
-			logger.Error("UnpackIntoInterface uploadChunk")
-			return nil, err
-		}
-		result = kq
-		logger.Info("UploadChunk - Result - ", kq)
+		// var kq bool
+		// err = h.fileAbi.UnpackIntoInterface(&kq, "uploadChunk", receipt.Return())
+		// if err != nil {
+		// 	logger.Error("UnpackIntoInterface uploadChunk")
+		// 	return nil, err
+		// }
+		result = true
+		logger.Info("UploadChunk - Result - ", true)
 	} else {
 		result = hex.EncodeToString(receipt.Return())
 		logger.Info("UploadChunk - Result - ", result)

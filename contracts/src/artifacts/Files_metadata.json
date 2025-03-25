@@ -703,7 +703,7 @@
 	},
 	"settings": {
 		"compilationTarget": {
-			"contracts/src/file.sol": "Files"
+			"src/file.sol": "Files"
 		},
 		"evmVersion": "paris",
 		"libraries": {},
@@ -717,7 +717,7 @@
 		"remappings": []
 	},
 	"sources": {
-		"contracts/src/file.sol": {
+		"src/file.sol": {
 			"keccak256": "0x155109496867fc495db4b722fff8619336edbbd29003d2c5dc6e38d70b98ceec",
 			"license": "MIT",
 			"urls": [
@@ -725,7 +725,7 @@
 				"dweb:/ipfs/QmPe6XwTiuw84iyix41HBxtY3LyiJ82rFz2Uxi3EpqUP4S"
 			]
 		},
-		"contracts/src/interfaces/IEmailStorage.sol": {
+		"src/interfaces/IEmailStorage.sol": {
 			"keccak256": "0x5ed51698f7c916c2aef99b1d12dd03b1dcaf73360b62bdcc49f313d92e6920fb",
 			"license": "MIT",
 			"urls": [

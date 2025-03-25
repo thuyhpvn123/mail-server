@@ -1,0 +1,14 @@
+[
+  {
+    "ContentDisposition": "inline; filename=\"file3.jpg\"",
+    "ContentID": "\u003cimage2\u003e",
+    "ContentLen": 512,
+    "ExpireTime": 1739432686,
+    "Ext": "jpg",
+    "Hash": "ea2d7caa7dc12c8f54df61743454d6d1e6ed7c1331674ef0813ba0935dc68498",
+    "Name": "file3.jpg",
+    "Owner": "b50b908ffd42d2edb12b325e75330c1aaaf35dc0",
+    "Status": 1,
+    "TotalChunks": 1
+  }
+]

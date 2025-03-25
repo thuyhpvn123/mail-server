@@ -7,15 +7,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"gomail/cmd/client/command"
-	"gomail/mtn/logger"
-	pb "gomail/mtn/proto"
-	"gomail/mtn/receipt"
-	"gomail/mtn/smart_contract"
-	"gomail/mtn/state"
-	"gomail/mtn/stats"
-	"gomail/mtn/transaction"
-	"gomail/mtn/types"
-	"gomail/mtn/types/network"
+	"gomail/pkg/logger"
+	pb "gomail/pkg/proto"
+	"gomail/pkg/receipt"
+	"gomail/pkg/smart_contract"
+	"gomail/pkg/state"
+	"gomail/pkg/stats"
+	"gomail/pkg/transaction"
+	"gomail/types"
+	"gomail/types/network"
 )
 
 var ErrorCommandNotFound = errors.New("command not found")
@@ -25,7 +25,7 @@ type Handler struct {
 	receiptChan          chan types.Receipt
 	eventLogChan         chan types.EventLogs
 	transactionErrorChan chan types.TransactionError
-	deviceKeyChan          chan types.LastDeviceKey
+	deviceKeyChan        chan types.LastDeviceKey
 }
 
 func NewHandler(
@@ -37,14 +37,14 @@ func NewHandler(
 	return &Handler{
 		accountStateChan:     accountStateChan,
 		receiptChan:          receiptChan,
-		deviceKeyChan:          deviceKeyChan,
+		deviceKeyChan:        deviceKeyChan,
 		transactionErrorChan: transactionErrorChan,
 	}
 }
 
 func (h *Handler) HandleRequest(request network.Request) (err error) {
 	cmd := request.Message().Command()
-	logger.Debug("handler.gohandling command: " + cmd)
+	// logger.Debug("handler.gohandling command: " + cmd)
 	switch cmd {
 	case command.InitConnection:
 		return h.handleInitConnection(request)
@@ -52,8 +52,8 @@ func (h *Handler) HandleRequest(request network.Request) (err error) {
 		return h.handleAccountState(request)
 	case command.TransactionError:
 		transactionError := &transaction.TransactionHashWithErrorCode{}
-		err = transactionError.Unmarshal(request.Message().Body())
-		logger.Debug("Receive Transaction error: ", transactionError)
+		_ = transactionError.Unmarshal(request.Message().Body())
+		logger.Debug("Receive Transaction error 0: ", transactionError.Proto().Code)
 		return nil
 	case command.Receipt:
 		return h.handleReceipt(request)
@@ -107,40 +107,38 @@ func (h *Handler) handleAccountState(request network.Request) (err error) {
 	if err != nil {
 		return err
 	}
-	logger.Debug(fmt.Sprintf("Receive Account state: \n%v", accountState))
+	// logger.Debug(fmt.Sprintf("Receive Account state: \n%v", accountState))
 	h.accountStateChan <- accountState
 	return nil
 }
 
 func (h *Handler) handleDeviceKey(request network.Request) (err error) {
-		
+
 	data := request.Message().Body()
-	if (len(data) != 64 && len(data) != 32) {
+	if len(data) != 64 && len(data) != 32 {
 		err = fmt.Errorf("unable to parse wrong len: %d", len(data))
 		return err
 	}
 
-
-
 	transactionHash := data[:32]
-	
+
 	var lastDeviceKeyFromServer []byte
-	
-	if (len(data) == 32) {
+
+	if len(data) == 32 {
 		lastDeviceKeyFromServer = common.Hash{}.Bytes()
 	} else {
 		lastDeviceKeyFromServer = data[32:]
 	}
 
 	lastDeviceKey := types.LastDeviceKey{
-		TransactionHash:       transactionHash,
+		TransactionHash:         transactionHash,
 		LastDeviceKeyFromServer: lastDeviceKeyFromServer,
 	}
 	if h.deviceKeyChan != nil {
-	    h.deviceKeyChan <- lastDeviceKey
+		h.deviceKeyChan <- lastDeviceKey
 	} else {
-	    err = fmt.Errorf("deviceKeyChan is nil")
-	    return err
+		err = fmt.Errorf("deviceKeyChan is nil")
+		return err
 	}
 
 	return nil
@@ -156,6 +154,7 @@ func (h *Handler) handleReceipt(request network.Request) (err error) {
 	if err != nil {
 		return err
 	}
+	logger.Info("handleReceipt", receipt)
 	if h.receiptChan != nil {
 		h.receiptChan <- receipt
 	} else {
@@ -164,7 +163,7 @@ func (h *Handler) handleReceipt(request network.Request) (err error) {
 		if receipt.Status() == pb.RECEIPT_STATUS_TRANSACTION_ERROR {
 			transactionErr := &transaction.TransactionError{}
 			transactionErr.Unmarshal(receipt.Return())
-			logger.Debug("Receive Transaction error: ", transactionErr)
+			logger.Debug("Receive Transaction error 1: ", transactionErr)
 		}
 	}
 	return nil

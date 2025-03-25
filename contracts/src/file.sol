@@ -84,7 +84,7 @@ contract Files {
             uploadChunk(fileKey,chunkDatas[i], chunkHashes[i]);
         }
     }
-    function uploadChunk(bytes32 fileKey, bytes memory chunkData, bytes32 chunkHash) public {
+    function uploadChunk(bytes32 fileKey, bytes memory chunkData, bytes32 chunkHash) public returns(bool){
         require(chunkData.length > 0 && chunkData.length <= 10 * 1024, "Invalid chunk size");
         
         FileInfo storage file = mKeyToFileInfo[fileKey];
@@ -138,10 +138,9 @@ contract Files {
 
         file.info.expireTime = _newExpireTime;
     }
-        function getFileInfo(bytes32 fileKey) external view returns (Info memory) {
+    function getFileInfo(bytes32 fileKey) external view returns (Info memory) {
         return mKeyToFileInfo[fileKey].info;
     }
-
     function getFilesInfo(bytes32[] memory fileKeys) external view returns(Info[] memory infos ){
         infos = new Info[](fileKeys.length);
         for(uint256 i=0; i< fileKeys.length; i++){

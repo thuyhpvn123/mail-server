@@ -9,16 +9,17 @@ const (
 	ChangeLogLevel = "ChangeLogLevel"
 
 	// Send messages
-	SendTransaction      = "SendTransaction"
-	SendTransactionWithDeviceKey      = "SendTransactionWithDeviceKey"
-	SendTransactions     = "SendTransactions"
-	GetAccountState      = "GetAccountState"
-	SubscribeToAddress   = "SubscribeToAddress"
-	GetStakeState        = "GetStakeState"
-	GetSmartContractData = "GetSmartContractData"
+	ReadTransaction              = "ReadTransaction"
+	SendTransaction              = "SendTransaction"
+	SendTransactionWithDeviceKey = "SendTransactionWithDeviceKey"
+	SendTransactions             = "SendTransactions"
+	GetAccountState              = "GetAccountState"
+	SubscribeToAddress           = "SubscribeToAddress"
+	GetStakeState                = "GetStakeState"
+	GetSmartContractData         = "GetSmartContractData"
 
-	GetDeviceKey      = "GetDeviceKey"
-	
+	GetDeviceKey = "GetDeviceKey"
+
 	// Receive message
 	AccountState      = "AccountState"
 	StakeState        = "StakeState"
@@ -27,5 +28,5 @@ const (
 	EventLogs         = "EventLogs"
 	QueryLogs         = "QueryLogs"
 	SmartContractData = "SmartContractData"
-	DeviceKey      = "DeviceKey"
+	DeviceKey         = "DeviceKey"
 )

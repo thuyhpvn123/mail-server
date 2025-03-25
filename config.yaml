@@ -1,25 +1,27 @@
-
 AdminAddress: "B50b908fFd42d2eDb12b325e75330c1AaAf35dc0" # Admin Address
-PrivateKey_: "068ab5318764afcaa90089c3bbe54bfab7c472dffc9cf4abf5ab3024b2111228"
-MetaNodeVersion: "0.0.1" 
+PrivateKey_: "2b3aa0f620d2d73c046cd93eb64f2eb687a95b22e278500aa251c8c9dda1203b"
+MetaNodeVersion: "0.0.1"
 
-NodeAddress: "0x16851100Aa757efad2D67C32A6b544737AB991A7" 
-NodeConnectionAddress: "node" 
+ParentAddress: "9065e2caaa4bf6533ded0b2a763e4ee81cd31bd2"
+NodeConnectionAddress: "node"
+ParentConnectionAddress: "0.0.0.0:4200"
+ParentConnectionType: "node"
+ConnectionAddress_: "0x1eF5a8c5403c5aA1d43a8DC9eD391351012551Cf"
+ChainId: 991
 
 StorageAddress: "0xda7284faC5E804F8b9d71Aa39310f0f86776b51d"
 StorageConnectionAddress: "storage"
 
-MailFactoryAddress: "0xaC84b79C087F4dF7A53232f901aDa76eF27cA142"  #  Address
+MailFactoryAddress: "0xBA418F1029BDAAdd2E9Fe328035b94b55F14D8c4" #  Address
 MailFactoryABIPath: "./sc/src_mailFactory_sol_FactoryMail.abi"
-MailStorageAddress: "0x41B28Bee34b81635749f5343dD8f4Cb0001e8809"
+MailStorageAddress: "0x2ac27b1922ed909A15Fe4E5f26ab105DD5c5c7bB"
 MailStorageABIPath: "./sc/src_mailStorage_sol_EmailStorage.abi"
-FileAddress: "0x88c2B7cCCB5FF2EbbFCBED4045066212E936412f"
+FileAddress: "0x81794a2B92051420C0C676A24dc72c2cA433675e"
 FileABIPath: "./sc/file.abi"
 
-NotiAddress: "7aeb12250f8f5af80ae3a8b1abfde6570a624f60"  #  Address
+NotiAddress: "0x544dA8FC5aBae68Aad3cE4AAf0Fc1712f0437ddE" #  Address
 
 DnsLink_: "http://127.0.0.1:7080/api/dns/connection-address/"
 
 OwnerUrl: "http://127.0.0.1:8188/api/v1/names/owner/"
 API_PORT: ":8999"
-

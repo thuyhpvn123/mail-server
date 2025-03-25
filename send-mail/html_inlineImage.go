@@ -22,7 +22,7 @@ import (
 func main() {
 	from := "your-email@example.com"
 	to := []string{"ooooo@payws.com"}
-	// to := []string{"bbbb@payws.com"}
+	// to := []string{"oooo@payws.com"}
 	// to := []string{"nguyenhuytam234@payws.com"}
 
 	smtpHost := "127.0.0.1"
@@ -81,14 +81,14 @@ func main() {
 
 	_ = relatedMP.Close()
 
-	// Attach multiple files
-	files := []string{"file4.jpeg"}
-	for _, file := range files {
-		err := addAttachment(mixedWriter, file)
-		if err != nil {
-			log.Fatalf("Failed to attach file %s: %v", file, err)
-		}
-	}
+	// // Attach multiple files
+	// files := []string{"file4.jpeg"}
+	// for _, file := range files {
+	// 	err := addAttachment(mixedWriter, file)
+	// 	if err != nil {
+	// 		log.Fatalf("Failed to attach file %s: %v", file, err)
+	// 	}
+	// }
 
 	_ = mixedWriter.Close()
 

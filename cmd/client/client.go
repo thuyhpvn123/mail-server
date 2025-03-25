@@ -2,13 +2,13 @@ package client
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/big"
-	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 
 	"gomail/cmd/client/command"
 	"gomail/cmd/client/pkg/client_context"
@@ -16,23 +16,24 @@ import (
 	"gomail/cmd/client/pkg/controllers"
 	c_network "gomail/cmd/client/pkg/network"
 	client_types "gomail/cmd/client/types"
-	"gomail/mtn/bls"
-	p_common "gomail/mtn/common"
-	"gomail/mtn/logger"
-	p_network "gomail/mtn/network"
-	pb "gomail/mtn/proto"
-	"gomail/mtn/types"
-	t_network "gomail/mtn/types/network"
-	"github.com/ethereum/go-ethereum/crypto"
+	"gomail/pkg/bls"
+	p_common "gomail/pkg/common"
+	"gomail/pkg/logger"
+	p_network "gomail/pkg/network"
+	pb "gomail/pkg/proto"
+	"gomail/pkg/transaction"
+	"gomail/types"
+	t_network "gomail/types/network"
 )
 
 type Client struct {
 	clientContext *client_context.ClientContext
 
-	mu                    sync.Mutex
-	accountStateChan      chan types.AccountState
-	receiptChan           chan types.Receipt
-	deviceKeyChan           chan types.LastDeviceKey
+	// mu               sync.Mutex
+	accountStateChan chan types.AccountState
+	receiptChan      chan types.Receipt
+	deviceKeyChan    chan types.LastDeviceKey
+
 	transactionErrorChan  chan types.TransactionError
 	transactionController client_types.TransactionController
 	subscribeSCAddresses  []common.Address
@@ -47,10 +48,11 @@ func NewClient(
 		Config: config,
 	}
 	client := Client{
-		clientContext:        clientContext,
-		accountStateChan:     make(chan types.AccountState, 1),
-		receiptChan:          make(chan types.Receipt, 1),
-		deviceKeyChan:          make(chan types.LastDeviceKey, 1),
+		clientContext:    clientContext,
+		accountStateChan: make(chan types.AccountState, 2000),
+		receiptChan:      make(chan types.Receipt, 1),
+		deviceKeyChan:    make(chan types.LastDeviceKey, 1),
+
 		transactionErrorChan: make(chan types.TransactionError, 1),
 	}
 
@@ -64,13 +66,14 @@ func NewClient(
 		config.ParentConnectionType,
 		config.DnsLink(),
 	)
+	parentConn.SetRealConnAddr(config.ParentConnectionAddress)
 	clientContext.Handler = c_network.NewHandler(
 		client.accountStateChan,
 		client.receiptChan,
 		client.deviceKeyChan,
 		client.transactionErrorChan,
 	)
-	clientContext.SocketServer = p_network.NewSockerServer(
+	clientContext.SocketServer = p_network.NewSocketServer(
 		clientContext.KeyPair,
 		clientContext.ConnectionsManager,
 		clientContext.Handler,
@@ -79,8 +82,9 @@ func NewClient(
 		config.DnsLink(),
 	)
 	err := parentConn.Connect()
+	logger.Info(err)
 	if err != nil {
-		logger.Error(fmt.Sprintf("error when connect to parent: %v", err))
+		logger.Error(fmt.Sprintf("error when connect to parent %v", err))
 		return nil, err
 	} else {
 		// init connection
@@ -94,10 +98,20 @@ func NewClient(
 	return &client, nil
 }
 
+func (client *Client) GetClientContext() *client_context.ClientContext {
+	return client.clientContext
+}
+
+func (client *Client) GetTransactionController() client_types.TransactionController {
+	return client.transactionController
+}
+func (client *Client) GetAccountStateChan() chan types.AccountState {
+	return client.accountStateChan
+}
+
 func (client *Client) ReconnectToParent(conn t_network.Connection) error {
 	err := conn.Connect()
 	if err != nil {
-		logger.Error(fmt.Sprintf("error when connect to parent. %v", err))
 		return err
 	} else {
 		client.clientContext.ConnectionsManager.AddParentConnection(conn)
@@ -108,6 +122,7 @@ func (client *Client) ReconnectToParent(conn t_network.Connection) error {
 }
 
 func (client *Client) SendTransaction(
+	fromAddress common.Address,
 	toAddress common.Address,
 	amount *big.Int,
 	action pb.ACTION,
@@ -116,9 +131,10 @@ func (client *Client) SendTransaction(
 	maxGas uint64,
 	maxGasPrice uint64,
 	maxTimeUse uint64,
+
 ) (types.Receipt, error) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	// client.mu.Lock()
+	// defer client.mu.Unlock()
 	// get account state
 	parentConn := client.clientContext.ConnectionsManager.ParentConnection()
 	if !parentConn.IsConnect() {
@@ -131,15 +147,14 @@ func (client *Client) SendTransaction(
 	client.clientContext.MessageSender.SendBytes(
 		parentConn,
 		command.GetAccountState,
-		client.clientContext.KeyPair.Address().Bytes(),
+		fromAddress.Bytes(),
 	)
 	lastDeviceKey := common.HexToHash(
 		"0000000000000000000000000000000000000000000000000000000000000000",
 	)
 	newDeviceKey := common.HexToHash(
-		"290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563",
+		"0000000000000000000000000000000000000000000000000000000000000000",
 	)
-
 	select {
 	case as := <-client.accountStateChan:
 		lastHash := as.LastHash()
@@ -151,6 +166,7 @@ func (client *Client) SendTransaction(
 		}
 		_, err := client.transactionController.SendTransaction(
 			lastHash,
+			fromAddress,
 			toAddress,
 			pendingBalance,
 			amount,
@@ -163,6 +179,8 @@ func (client *Client) SendTransaction(
 			lastDeviceKey,
 			newDeviceKey,
 			nil,
+			as.Nonce(),
+			client.clientContext.Config.ChainId,
 		)
 		if err != nil {
 			return nil, err
@@ -171,17 +189,18 @@ func (client *Client) SendTransaction(
 		select {
 		case receipt := <-client.receiptChan:
 			return receipt, nil
-		case <-time.After(10 * time.Second):
-			logger.DebugP("Timeout recive receipt")
-			return nil, errors.New("err timeout when SendTransaction")
+			// case <-time.After(10 * time.Second):
+			// 	logger.DebugP("Timeout recive receipt")
+			// 	return nil, errors.New("err timeout when SendTransaction")
 		}
-	case <-time.After(10 * time.Second):
-		logger.DebugP("Timeout get account state")
-		return nil, errors.New("err timeout when SendTransaction")
+		// case <-time.After(10 * time.Second):
+		// 	logger.DebugP("Timeout get account state")
+		// 	return nil, errors.New("err timeout when SendTransaction")
 	}
 }
 
-func (client *Client) SendTransactionWithCommission(
+func (client *Client) ReadTransaction(
+	fromAddress common.Address,
 	toAddress common.Address,
 	amount *big.Int,
 	action pb.ACTION,
@@ -190,10 +209,10 @@ func (client *Client) SendTransactionWithCommission(
 	maxGas uint64,
 	maxGasPrice uint64,
 	maxTimeUse uint64,
-	commissionPrivateKey []byte,
+
 ) (types.Receipt, error) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	// client.mu.Lock()
+	// defer client.mu.Unlock()
 	// get account state
 	parentConn := client.clientContext.ConnectionsManager.ParentConnection()
 	if !parentConn.IsConnect() {
@@ -206,14 +225,13 @@ func (client *Client) SendTransactionWithCommission(
 	client.clientContext.MessageSender.SendBytes(
 		parentConn,
 		command.GetAccountState,
-		client.clientContext.KeyPair.Address().Bytes(),
+		fromAddress.Bytes(),
 	)
-
 	lastDeviceKey := common.HexToHash(
 		"0000000000000000000000000000000000000000000000000000000000000000",
 	)
 	newDeviceKey := common.HexToHash(
-		"290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563",
+		"0000000000000000000000000000000000000000000000000000000000000000",
 	)
 	select {
 	case as := <-client.accountStateChan:
@@ -224,8 +242,9 @@ func (client *Client) SendTransactionWithCommission(
 		for i, v := range relatedAddress {
 			bRelatedAddresses[i] = v.Bytes()
 		}
-		_, err := client.transactionController.SendTransaction(
+		_, err := client.transactionController.ReadTransaction(
 			lastHash,
+			fromAddress,
 			toAddress,
 			pendingBalance,
 			amount,
@@ -237,7 +256,9 @@ func (client *Client) SendTransactionWithCommission(
 			bRelatedAddresses,
 			lastDeviceKey,
 			newDeviceKey,
-			commissionPrivateKey,
+			nil,
+			as.Nonce(),
+			client.clientContext.Config.ChainId,
 		)
 		if err != nil {
 			return nil, err
@@ -246,18 +267,71 @@ func (client *Client) SendTransactionWithCommission(
 		select {
 		case receipt := <-client.receiptChan:
 			return receipt, nil
-		case <-time.After(10 * time.Second):
-			logger.DebugP("Timeout recive receipt")
-			return nil, errors.New("err timeout when SendTransaction")
+			// case <-time.After(10 * time.Second):
+			// 	logger.DebugP("Timeout recive receipt")
+			// 	return nil, errors.New("err timeout when SendTransaction")
 		}
-	case <-time.After(10 * time.Second):
-		logger.DebugP("Timeout get account state")
-		return nil, errors.New("err timeout when SendTransaction")
+		// case <-time.After(10 * time.Second):
+		// 	logger.DebugP("Timeout get account state")
+		// 	return nil, errors.New("err timeout when SendTransaction")
 	}
 }
 
+func (client *Client) AddAccountForClient(privateKey string, chainId string) (types.Receipt, error) {
+	// Giải mã private key từ chuỗi hex sang dạng byte
+	prk, _ := hex.DecodeString(privateKey)
+	// Lấy public key BLS từ client context
+	blsPublicKey := client.clientContext.KeyPair.PublicKey().Bytes()
+	// blsPublicKey[len(blsPublicKey)-1] ^= 0x01
+	// Đảo bit cuối để thay đổi giá trị
+
+	// Ghép nối public key BLS và chain ID (là string) thành một mảng byte
+	message := append(blsPublicKey, []byte(chainId)...)
+	// Tính toán hash của message sử dụng Keccak256
+	hash := crypto.Keccak256(message)
+	// Ký hash sử dụng private key và thuật toán secp256k1
+	sig, err := secp256k1.Sign(hash, prk)
+	if err != nil {
+		logger.Error("Error Sign", err)
+	}
+
+	// Khôi phục public key từ chữ ký và hash sử dụng thuật toán secp256k1
+	pbk, err := secp256k1.RecoverPubkey(hash, sig)
+	if err != nil {
+		logger.Error("Error RecoverPubkey", err)
+	}
+	// Ghép nối public key BLS và chữ ký thành một mảng byte
+	combined := make([]byte, len(blsPublicKey)+len(sig)) // Tạo một slice mới có kích thước đủ lớn
+	copy(combined, blsPublicKey)                         // Sao chép blsPublicKey vào slice mới
+	copy(combined[len(blsPublicKey):], sig)              // Sao chép chữ ký vào slice mới
+
+	// Tính toán địa chỉ ví từ public key đã khôi phục
+	var addr common.Address
+	copy(addr[:], crypto.Keccak256(pbk[1:])[12:])
+	// Khởi tạo giá trị amount là 1
+	bigI := big.NewInt(1)
+	// Tạo dữ liệu gọi hàm (call data) từ mảng byte combined
+	callData := transaction.NewCallData(combined)
+	// Marshal call data sang dạng byte
+	cData, _ := callData.Marshal()
+
+	// Gửi giao dịch với dữ liệu đã chuẩn bị
+	receipt, err := client.SendTransactionWithDeviceKey(
+		addr, // Địa chỉ ví
+		addr, // Địa chỉ nhận
+		bigI,
+		pb.ACTION_EMPTY,
+		cData,
+		nil,
+		100000,
+		1000000000,
+		6000,
+	)
+	return receipt, err
+}
 
 func (client *Client) SendTransactionWithDeviceKey(
+	fromAddress common.Address,
 	toAddress common.Address,
 	amount *big.Int,
 	action pb.ACTION,
@@ -267,9 +341,7 @@ func (client *Client) SendTransactionWithDeviceKey(
 	maxGasPrice uint64,
 	maxTimeUse uint64,
 ) (types.Receipt, error) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
-	// get account state
+	// Lấy kết nối tới Parent Node
 	parentConn := client.clientContext.ConnectionsManager.ParentConnection()
 	if !parentConn.IsConnect() {
 		err := client.ReconnectToParent(parentConn)
@@ -278,113 +350,94 @@ func (client *Client) SendTransactionWithDeviceKey(
 		}
 	}
 
+	// Gửi yêu cầu lấy trạng thái tài khoản
 	client.clientContext.MessageSender.SendBytes(
 		parentConn,
 		command.GetAccountState,
-		client.clientContext.KeyPair.Address().Bytes(),
+		fromAddress.Bytes(),
 	)
 
-	// lastDeviceKey := common.HexToHash(
-	// 	"0000000000000000000000000000000000000000000000000000000000000000",
-	// )
-	// newDeviceKey := common.HexToHash(
-	// 	"290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563",
-	// )
+	// Lắng nghe tài khoản trong kênh accountStateChan bằng for range
+	for as := range client.accountStateChan {
+		// Nếu không phải tài khoản mong muốn, tiếp tục lắng nghe mà không bỏ dữ liệu
+		if as.Address() != fromAddress {
+			// Gửi lại dữ liệu cho luồng khác đọc (không bỏ dữ liệu)
+			client.accountStateChan <- as
+			time.Sleep(100 * time.Millisecond) // Delay trước khi tiếp tục lặp
+			continue
+		}
 
-	select {
-	case as := <-client.accountStateChan:
+		logger.Info("as.Address: 2 ", as)
 
+		// Nếu tìm thấy tài khoản phù hợp, xử lý giao dịch
 		lastHash := as.LastHash()
 		pendingBalance := as.PendingBalance()
-		
-		// lastDeviceKey := common.HexToHash(string(as.Proto().GetDeviceKey()))
-		fmt.Println("lastDeviceKey:",lastHash)
 
 		err := client.clientContext.MessageSender.SendBytes(
 			parentConn,
 			"GetDeviceKey",
 			lastHash.Bytes(),
-			// make([]byte, 0),
 		)
-
 
 		if err != nil {
 			return nil, err
 		}
 
-		select {
-		case receiveDeviceKey := <-client.deviceKeyChan:
-				
+		// Lắng nghe deviceKey từ server
+		receiveDeviceKey := <-client.deviceKeyChan
+		TransactionHash := receiveDeviceKey.TransactionHash
+		lastDeviceKey := common.HexToHash(
+			hex.EncodeToString(receiveDeviceKey.LastDeviceKeyFromServer),
+		)
+		logger.Info(lastHash, common.BytesToHash(receiveDeviceKey.TransactionHash))
+		// Tạo khóa thiết bị mới
+		rawNewDeviceKeyBytes := []byte(fmt.Sprintf("%s-%d", hex.EncodeToString(TransactionHash), time.Now().Unix()))
+		rawNewDeviceKey := crypto.Keccak256(rawNewDeviceKeyBytes)
+		newDeviceKey := crypto.Keccak256Hash(rawNewDeviceKey)
 
-			TransactionHash := receiveDeviceKey.TransactionHash
-			
-			lastDeviceKey := common.HexToHash(
-				hex.EncodeToString(receiveDeviceKey.LastDeviceKeyFromServer),
-			)
+		// Chuyển đổi danh sách địa chỉ liên quan sang mảng byte
+		bRelatedAddresses := make([][]byte, len(relatedAddress))
+		for i, v := range relatedAddress {
+			bRelatedAddresses[i] = v.Bytes()
+		}
+		logger.Info("fromAddress: toAddress ", fromAddress, toAddress, as.Nonce())
 
-			// logger.DebugP("TransactionHash", hex.EncodeToString(TransactionHash))
-			// logger.DebugP("lastDeviceKey", lastDeviceKey)
-
-
-			rawNewDeviceKeyBytes := []byte( fmt.Sprintf("%s-%d", hex.EncodeToString(TransactionHash), time.Now().Unix()) )
-
-			rawNewDeviceKey := crypto.Keccak256(rawNewDeviceKeyBytes)
-
-			// logger.DebugP("rawNewDeviceKey", hex.EncodeToString(rawNewDeviceKey))
-
-			newDeviceKey := crypto.Keccak256Hash(rawNewDeviceKey)
-			
-
-			bRelatedAddresses := make([][]byte, len(relatedAddress))
-			for i, v := range relatedAddress {
-				bRelatedAddresses[i] = v.Bytes()
-			}
-			_, err = client.transactionController.SendTransactionWithDeviceKey(
-				lastHash,
-				toAddress,
-				pendingBalance,
-				amount,
-				maxGas,
-				maxGasPrice,
-				maxTimeUse,
-				action,
-				data,
-				bRelatedAddresses,
-				lastDeviceKey,
-				newDeviceKey,
-				nil,
-				rawNewDeviceKey,
-			)
-			if err != nil {
-				return nil, err
-			}
-
-			select {
-			case receipt := <-client.receiptChan:
-				return receipt, nil
-			case <-time.After(10 * time.Second):
-				logger.DebugP("Timeout recive receipt")
-				return nil, errors.New("err timeout when SendTransaction")
-			}
-
-		case <-time.After(10 * time.Second):
-			logger.DebugP("Timeout recive receipt GetDeviceKey")
-			return nil, errors.New("err timeout when GetDeviceKey")
+		// Gửi giao dịch với device key
+		_, err = client.transactionController.SendTransactionWithDeviceKey(
+			lastHash,
+			fromAddress,
+			toAddress,
+			pendingBalance,
+			amount,
+			maxGas,
+			maxGasPrice,
+			maxTimeUse,
+			action,
+			data,
+			bRelatedAddresses,
+			lastDeviceKey,
+			newDeviceKey,
+			nil,
+			as.Nonce(),
+			rawNewDeviceKey,
+			client.clientContext.Config.ChainId,
+		)
+		if err != nil {
+			return nil, err
 		}
 
-
-
-
-		
-	case <-time.After(10 * time.Second):
-		logger.DebugP("Timeout get account state")
-		return nil, errors.New("err timeout when SendTransaction")
+		// Chờ biên lai giao dịch (receipt)
+		receipt := <-client.receiptChan
+		return receipt, nil
 	}
+
+	// Nếu kênh accountStateChan bị đóng, trả lỗi
+	return nil, fmt.Errorf("account state channel closed unexpectedly")
 }
 
 func (client *Client) AccountState(address common.Address) (types.AccountState, error) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	// client.mu.Lock()
+	// defer client.mu.Unlock()
 	// get account state
 	parentConn := client.clientContext.ConnectionsManager.ParentConnection()
 	client.clientContext.MessageSender.SendBytes(
@@ -397,8 +450,8 @@ func (client *Client) AccountState(address common.Address) (types.AccountState, 
 }
 
 func (client *Client) Get(address common.Address) (types.AccountState, error) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	// client.mu.Lock()
+	// defer client.mu.Unlock()
 	// get account state
 	parentConn := client.clientContext.ConnectionsManager.ParentConnection()
 	client.clientContext.MessageSender.SendBytes(
@@ -442,7 +495,7 @@ func NewStorageClient(
 		client.deviceKeyChan,
 		client.transactionErrorChan,
 	)
-	clientContext.SocketServer = p_network.NewSockerServer(
+	clientContext.SocketServer = p_network.NewSocketServer(
 		clientContext.KeyPair,
 		clientContext.ConnectionsManager,
 		clientContext.Handler,
@@ -450,12 +503,9 @@ func NewStorageClient(
 		config.Version(),
 		config.DnsLink(),
 	)
-	// #debug
-	// parentConn.SetRealConnAddr("192.168.1.253:7101")
-
 	err := parentConn.Connect()
 	if err != nil {
-		logger.Error(fmt.Sprintf("error when connect to parent! %v", err))
+		logger.Error(fmt.Sprintf("error when connect to parent %v", err))
 		return nil, err
 	} else {
 		// init connection
@@ -474,6 +524,7 @@ func NewStorageClient(
 	client.transactionController = controllers.NewTransactionController(
 		clientContext,
 	)
+
 	evenLogsChan := make(chan types.EventLogs)
 	client.clientContext.Handler.(*c_network.Handler).SetEventLogsChan(evenLogsChan)
 	client.clientContext.SocketServer.AddOnDisconnectedCallBack(client.RetryConnectToStorage)
@@ -579,9 +630,11 @@ func (client *Client) RetryConnectToStorage(conn t_network.Connection) {
 		panic("panic when retry connect")
 	}
 }
+
 func (client *Client) GetEventLogsChan() chan types.EventLogs {
 	return client.clientContext.Handler.(*c_network.Handler).GetEventLogsChan()
 }
+
 func (client *Client) Close() {
 	// remove parent connection to avoid reconnect
 	client.clientContext.ConnectionsManager.AddParentConnection(nil)
@@ -589,8 +642,8 @@ func (client *Client) Close() {
 }
 
 func (client *Client) SendQueryLogs(bQuery []byte) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	// client.mu.Lock()
+	// defer client.mu.Unlock()
 	// get account state
 
 	parentConn := client.clientContext.ConnectionsManager.ParentConnection()
@@ -608,6 +661,8 @@ func (client *Client) NewEventLogsChan() chan types.EventLogs {
 }
 
 func (client *Client) SendTransactionWithFullInfo(
+	fromAddress common.Address,
+
 	toAddress common.Address,
 	amount *big.Int,
 	maxGas uint64,
@@ -619,9 +674,10 @@ func (client *Client) SendTransactionWithFullInfo(
 	lastDeviceKey common.Hash,
 	newDeviceKey common.Hash,
 	commissionPrivateKey []byte,
+
 ) (types.Receipt, error) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	// client.mu.Lock()
+	// defer client.mu.Unlock()
 	// get account state
 	parentConn := client.clientContext.ConnectionsManager.ParentConnection()
 	if !parentConn.IsConnect() {
@@ -634,7 +690,7 @@ func (client *Client) SendTransactionWithFullInfo(
 	client.clientContext.MessageSender.SendBytes(
 		parentConn,
 		command.GetAccountState,
-		client.clientContext.KeyPair.Address().Bytes(),
+		fromAddress.Bytes(),
 	)
 
 	select {
@@ -648,6 +704,7 @@ func (client *Client) SendTransactionWithFullInfo(
 		}
 		_, err := client.transactionController.SendTransaction(
 			lastHash,
+			fromAddress,
 			toAddress,
 			pendingBalance,
 			amount,
@@ -660,6 +717,8 @@ func (client *Client) SendTransactionWithFullInfo(
 			lastDeviceKey,
 			newDeviceKey,
 			nil,
+			as.Nonce(),
+			client.clientContext.Config.ChainId,
 		)
 		if err != nil {
 			return nil, err
@@ -668,13 +727,7 @@ func (client *Client) SendTransactionWithFullInfo(
 		select {
 		case receipt := <-client.receiptChan:
 			return receipt, nil
-		case <-time.After(10 * time.Second):
-			logger.DebugP("Timeout recive receipt")
-			return nil, errors.New("err timeout when SendTransaction")
 		}
-	case <-time.After(10 * time.Second):
-		logger.DebugP("Timeout get account state")
-		return nil, errors.New("err timeout when SendTransaction")
 	}
 }
 

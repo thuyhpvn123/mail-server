@@ -190,6 +190,25 @@
 	{
 		"inputs": [
 			{
+				"internalType": "string[]",
+				"name": "names",
+				"type": "string[]"
+			}
+		],
+		"name": "getFileKeyFromName",
+		"outputs": [
+			{
+				"internalType": "bytes32[]",
+				"name": "",
+				"type": "bytes32[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
 				"internalType": "bytes32",
 				"name": "fileKey",
 				"type": "bytes32"
@@ -395,6 +414,25 @@
 				"internalType": "struct FileProgress",
 				"name": "progress",
 				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"name": "mNameToFileKey",
+		"outputs": [
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
 			}
 		],
 		"stateMutability": "view",
@@ -625,6 +663,29 @@
 				"type": "bool"
 			}
 		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "fileKey",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "bytes[]",
+				"name": "chunkDatas",
+				"type": "bytes[]"
+			},
+			{
+				"internalType": "bytes32[]",
+				"name": "chunkHashes",
+				"type": "bytes32[]"
+			}
+		],
+		"name": "uploadChunks",
+		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
 	}

@@ -1,0 +1,9 @@
+{
+    "version": "0.0.1.0",
+    "private_key": "2b3aa0f620d2d73c046cd93eb64f2eb687a95b22e278500aa251c8c9dda1203b",
+    "parent_address": "9065e2caaa4bf6533ded0b2a763e4ee81cd31bd2",
+    "parent_connection_address": "0.0.0.0:4200",
+    "parent_connection_type": "node",
+    "dns_link": "http://127.0.0.1:7080/api/dns/connection-address/",
+    "chain_id": 1000
+}

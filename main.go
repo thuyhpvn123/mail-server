@@ -49,7 +49,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )
+
 const chunkSize = 1 * 1024
+
 // File to monitor
 const monitoredFile = "/home/ubuntu/gitMain" // Change to the path of your executable
 
@@ -81,11 +83,11 @@ type Attachment struct {
 	ContentID          string // Content-ID nếu có
 	ContentType        string // Content-Type của file (ví dụ: "application/pdf")
 	Data               []byte // Dữ liệu của attachment
-	FileName string
-	FileExtension string
-	FileHash [32]byte
-	ContentLength uint64
-	TotalChunks uint64
+	FileName           string
+	FileExtension      string
+	FileHash           [32]byte
+	ContentLength      uint64
+	TotalChunks        uint64
 }
 
 // func sanitizeEmailHTML(html string) string {
@@ -132,9 +134,9 @@ type Attachment struct {
 // 	policy.RequireNoFollowOnFullyQualifiedLinks(true)
 // 	policy.AddTargetBlankToFullyQualifiedLinks(true)
 
-// 	// Sanitize and return the cleaned HTML
-// 	return policy.Sanitize(html)
-// }
+//		// Sanitize and return the cleaned HTML
+//		return policy.Sanitize(html)
+//	}
 func sanitizeEmailHTML(htmlString string) (string, error) {
 	// Parse the HTML string
 	doc, err := html.Parse(strings.NewReader(htmlString))
@@ -253,16 +255,16 @@ func parseMultipartEmail(multipartReader *multipart.Reader, parsedEmail *ParsedE
 				return nil, fmt.Errorf("error reading body content: %w", err)
 			}
 
-			if strings.HasPrefix(contentType, "text/plain") || strings.HasPrefix(contentType, "text/html"){
+			if strings.HasPrefix(contentType, "text/plain") || strings.HasPrefix(contentType, "text/html") {
 				parsedEmail.Body = string(bodyContent)
-				if strings.HasPrefix(contentType, "text/html"){
+				if strings.HasPrefix(contentType, "text/html") {
 					extractBody, err := utils.ExtractBodyContent(string(bodyContent))
 					if err != nil {
 						return nil, fmt.Errorf("error reading attachment: %w", err)
 					}
-					parsedEmail.Discription = utils.GetMax200Characters(extractBody,maxDesLength)
-				}else{
-					parsedEmail.Discription = utils.GetMax200Characters(string(bodyContent),maxDesLength)
+					parsedEmail.Discription = utils.GetMax200Characters(extractBody, maxDesLength)
+				} else {
+					parsedEmail.Discription = utils.GetMax200Characters(string(bodyContent), maxDesLength)
 				}
 			}
 		}
@@ -278,12 +280,12 @@ func parseMultipartEmail(multipartReader *multipart.Reader, parsedEmail *ParsedE
 			// Extract file details
 			fileName := utils.ExtractFileName(contentDisposition)
 			fileExt := utils.ExtractFileExtension(fileName)
-			
+
 			fileHash := utils.GenerateFileHash(attachmentData)
 			decodedData, err := base64.StdEncoding.DecodeString(string(attachmentData))
 
 			contentLength := len(decodedData)
-			fmt.Println("contentLength la:",decodedData)
+			fmt.Println("contentLength la:", decodedData)
 			totalChunks := utils.CalculateChunks(contentLength, chunkSize) // Assuming 1 MB chunks
 			if err != nil {
 				return nil, fmt.Errorf("failed to decode base64 data: %v", err)
@@ -400,9 +402,12 @@ func main() {
 		&c_config.ClientConfig{
 			Version_:                cconfig.MetaNodeVersion,
 			PrivateKey_:             cconfig.PrivateKey_,
-			ParentAddress:           cconfig.NodeAddress,
-			ParentConnectionAddress: cconfig.NodeConnectionAddress,
+			ParentAddress:           cconfig.ParentAddress,
+			ParentConnectionAddress: cconfig.ParentConnectionAddress,
 			DnsLink_:                cconfig.DnsLink(),
+			ConnectionAddress_: cconfig.ConnectionAddress_,
+			ParentConnectionType: cconfig.ParentConnectionType,
+			ChainId:cconfig.ChainId,
 		},
 	)
 
@@ -452,10 +457,10 @@ func main() {
 		common.HexToAddress(cconfig.AdminAddress),
 		&abiFile,
 		common.HexToAddress(cconfig.FileAddress),
+		common.HexToAddress(cconfig.AdminAddress),
 	)
 
 	var emailStorageMap = sync.Map{}
-
 
 	// Định nghĩa processor tùy chỉnh
 	type myFooConfig struct {
@@ -524,22 +529,22 @@ func main() {
 					// Check the response status code
 					if resp.StatusCode != http.StatusOK {
 						log.Printf("Received non-OK HTTP status: %s", resp.Status)
-						
+
 					}
 
 					// Read the response body
 					body, err := ioutil.ReadAll(resp.Body)
 					if err != nil {
 						log.Printf("Fail in Read the response body")
-						
+
 					}
 					// Convert the body to string
 					bodyStr := string(body)
 					// Trim any whitespace (including \n) from bodyStr
 					bodyStr = strings.TrimSpace(bodyStr)
-					fmt.Println("bodyStr:",bodyStr)
+					fmt.Println("bodyStr:", bodyStr)
 					//
-					add := "0x"+bodyStr
+					add := "0x" + bodyStr
 					// Step 5: Fetch the smart contract address for the recipient
 					// recipientName = "0xB50b908fFd42d2eDb12b325e75330c1AaAf35dc0"
 					emailStorageAddress, err := servs.GetEmailStorage(add)
@@ -600,22 +605,22 @@ func main() {
 					dkimResult, err := checkDKIM([]byte(e.Data.String()), senderDomain)
 					if ip != "127.0.0.1" && !dkimResult {
 						if err != nil {
-					        log.Printf("DKIM error: %v", err)
-					    }
+							log.Printf("DKIM error: %v", err)
+						}
 
-				        log.Printf("DKIM failed, fallback to SPF and DMARC checks")
+						log.Printf("DKIM failed, fallback to SPF and DMARC checks")
 
-				        // Kiểm tra SPF
-				        spfResult, spfErr := checkSPF(ip, senderDomain)
-				        if spfErr != nil || !spfResult {
-				            return backends.NewResult(fmt.Sprintf("554 SPF failed: %v", spfErr)), nil
-				        }
+						// Kiểm tra SPF
+						spfResult, spfErr := checkSPF(ip, senderDomain)
+						if spfErr != nil || !spfResult {
+							return backends.NewResult(fmt.Sprintf("554 SPF failed: %v", spfErr)), nil
+						}
 
-				        // Kiểm tra DMARC
-				        dmarcResult, dmarcErr := checkDMARC(senderDomain)
-				        if dmarcErr != nil || !dmarcResult {
-				            return backends.NewResult(fmt.Sprintf("554 DMARC failed: %v", dmarcErr)), nil
-				        }
+						// Kiểm tra DMARC
+						dmarcResult, dmarcErr := checkDMARC(senderDomain)
+						if dmarcErr != nil || !dmarcResult {
+							return backends.NewResult(fmt.Sprintf("554 DMARC failed: %v", dmarcErr)), nil
+						}
 					}
 
 					password, err := utils.GeneratePassword(recipient)
@@ -646,8 +651,8 @@ func main() {
 						log.Fatalf("Error parsing email: %v", err)
 					}
 					subject := parsedEmail.Subject
-	                // html := sanitizeEmailHTML(parsedEmail.Html)
-					body,err := sanitizeEmailHTML(parsedEmail.Body)
+					// html := sanitizeEmailHTML(parsedEmail.Html)
+					body, err := sanitizeEmailHTML(parsedEmail.Body)
 					if err != nil {
 						log.Fatalf("Error sanitizeEmailHTML: %v", err)
 					}
@@ -663,7 +668,7 @@ func main() {
 						return backends.NewResult("554 Error decrypting email"), nil
 					}
 
-					if (decryptedBody != body) {
+					if decryptedBody != body {
 						log.Printf("Error decrypting wrong email: %v", err)
 						return backends.NewResult("554 Error decrypting wrong email"), nil
 					}
@@ -672,48 +677,47 @@ func main() {
 					expireTime := createdAt + 30*24*60*60
 					// Step 4: Convert attachments into the required format
 					var infos []emailstorage.Info
-					
+
 					for _, attachment := range parsedEmail.Attachments {
 						info := emailstorage.Info{
-							Owner:common.HexToAddress(recipientName),
-							Hash:attachment.FileHash,
-							ContentLen:attachment.ContentLength,
-							TotalChunks:attachment.TotalChunks,
-							ExpireTime:expireTime ,
-							Name:attachment.FileName,
-							Ext:attachment.FileExtension,
-							Status: 0,
+							Owner:              common.HexToAddress(recipientName),
+							Hash:               attachment.FileHash,
+							ContentLen:         attachment.ContentLength,
+							TotalChunks:        attachment.TotalChunks,
+							ExpireTime:         expireTime,
+							Name:               attachment.FileName,
+							Ext:                attachment.FileExtension,
+							Status:             0,
 							ContentDisposition: attachment.ContentDisposition,
-							ContentID: attachment.ContentID,
-
+							ContentID:          attachment.ContentID,
 						}
-						infos = append(infos,info)
-						
+						infos = append(infos, info)
+
 					}
 
 					log.Printf("receiving email, subject: %s, body: %s, files: %d, createdAt %d, encryptedBody: %s", subject, body, createdAt, hex.EncodeToString(encryptedBody))
 					// Step 8: Call the pushFileInfos method
-					fileKeys,err := servs.PushFileInfos(infos)
+					fileKeys, err := servs.PushFileInfos(infos)
 					if err != nil {
 						log.Printf("Failed to call pushFileInfos: %v", err)
 						return backends.NewResult("554 Error calling pushFileInfos"), nil
 					}
-					fileKeysKq , ok := fileKeys.([][32]byte)
+					fileKeysKq, ok := fileKeys.([][32]byte)
 					if !ok {
 						log.Printf("Failed to parse fileKeys: %v", err)
 						return backends.NewResult("554 Error parse fileKeys"), nil
 					}
 					//Step 8: Call the uploadChunks method
 					// Chunk the file data into smaller pieces
-					 
+
 					for index, attachment := range parsedEmail.Attachments {
 						// decodedData, err := base64.StdEncoding.DecodeString(string(attachment.Data))
 						// if err != nil {
 						// 	return nil, fmt.Errorf("failed to decode base64 data: %v", err)
 						// }
 						chunks, _ := utils.ChunkData(attachment.Data, chunkSize)
-					
-						writeDataToFile("./data12",hex.EncodeToString(attachment.Data))
+
+						writeDataToFile("./data12", hex.EncodeToString(attachment.Data))
 
 						// if err != nil {
 						// 	log.Printf("Failed to parse UploadChunk: %v", err)
@@ -724,14 +728,14 @@ func main() {
 						lastChunkHash := [32]byte{}
 						var chunkHashes []string
 						var chunkkq []string
-						fmt.Println("len chunks la:",len(chunks))
+						fmt.Println("len chunks la:", len(chunks))
 						// Loop over each chunk and upload it to the contract
 						for _, bchunk := range chunks {
-							fmt.Println("len bchunk la:",len(bchunk))
+							fmt.Println("len bchunk la:", len(bchunk))
 							// bchunk ,err:= hex.DecodeString(chunk)
 							// Upload each chunk with its hash
 							lastChunkHash = utils.CalculateChunkHash(lastChunkHash, bchunk)
-							kq,err := servs.UploadChunk(fileKeysKq[index], bchunk, lastChunkHash)
+							kq, err := servs.UploadChunk(fileKeysKq[index], bchunk, lastChunkHash)
 							if err != nil {
 								log.Printf("Failed to call UploadChunk: %v", err)
 								return backends.NewResult("554 Error calling UploadChunk"), nil
@@ -761,6 +765,13 @@ func main() {
 					}
 					// Step 8: Call the CreateEmail method
 					discription := parsedEmail.Discription
+					fmt.Println("emailStorageAddress.(common.Address):",emailStorageAddress.(common.Address))
+					fmt.Println("sender:",sender)
+					fmt.Println("subject:",subject)
+					fmt.Println("fileKeysKq:",fileKeysKq)
+					fmt.Println("createdAt:",createdAt)
+					fmt.Println("discription:",discription)
+
 					hash, err := servs.CreateEmail(emailStorageAddress.(common.Address), sender, subject, body, fileKeysKq, createdAt, discription)
 					if err != nil {
 						log.Printf("Failed to call CreateEmail: %v", err)
@@ -1050,6 +1061,7 @@ func writeHashesToFile(filename string, hashes []string) error {
 	encoder.SetIndent("", "  ") // Pretty-print JSON
 	return encoder.Encode(hashes)
 }
+
 // Helper function to write hashes to a JSON file
 func writeDataToFile(filename string, data string) error {
 	file, err := os.Create(filename)

@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"os"
 
+	"gomail/pkg/bls"
+	p_common "gomail/pkg/common"
+	"gomail/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
-	"gomail/mtn/bls"
-	p_common "gomail/mtn/common"
-	"gomail/mtn/types"
 )
 
 type ClientConfig struct {
@@ -25,6 +26,7 @@ type ClientConfig struct {
 	ParentAddress           string `json:"parent_address"`
 	ParentConnectionAddress string `json:"parent_connection_address"`
 	ParentConnectionType    string `json:"parent_connection_type"`
+	ChainId                 uint64 `json:"chain_id"`
 }
 
 func (c *ClientConfig) ConnectionAddress() string {

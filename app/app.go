@@ -4,7 +4,7 @@
 // 		&c_config.ClientConfig{
 // 			Version_:                cconfig.MetaNodeVersion,
 // 			PrivateKey_:             cconfig.PrivateKey_,
-// 			ParentAddress:           cconfig.NodeAddress,
+// 			ParentAddress:           cconfig.ParentAddress,
 // 			ParentConnectionAddress: cconfig.NodeConnectionAddress,
 // 			DnsLink_:                cconfig.DnsLink(),
 // 		},
@@ -57,6 +57,5 @@
 // 		&abiFile,
 // 		common.HexToAddress(cconfig.FileAddress),
 // 	)
-
 
 // }

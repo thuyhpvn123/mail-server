@@ -2,30 +2,32 @@ package cli
 
 import (
 	"bufio"
-	// "encoding/hex"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
 	"os"
 	"strconv"
 	"strings"
-	// "time"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/holiman/uint256"
+
+	"gomail/cmd/client"
+	client_types "gomail/cmd/client/types"
 
 	"gomail/cmd/client/command"
 	"gomail/cmd/client/pkg/client_context"
-	client_types "gomail/cmd/client/types"
-	"gomail/mtn/bls"
-	p_common "gomail/mtn/common"
-	"gomail/mtn/logger"
-	"gomail/mtn/network"
-	pb "gomail/mtn/proto"
-	"gomail/mtn/transaction"
-	"gomail/mtn/types"
-	"gomail/cmd/client"
+	"gomail/pkg/bls"
+	p_common "gomail/pkg/common"
+	"gomail/pkg/logger"
+	"gomail/pkg/network"
+	pb "gomail/pkg/proto"
+	"gomail/pkg/transaction"
+	"gomail/types"
 )
 
 var (
@@ -34,26 +36,21 @@ var (
 )
 
 type Cli struct {
-	client *client.Client
 	clientContext *client_context.ClientContext
-
+	client        *client.Client
 	//
 	stop     bool
 	commands map[int]string
 	reader   *bufio.Reader
 
 	transactionController client_types.TransactionController
-	// accountStateChan      chan types.AccountState
+	accountStateChan      chan types.AccountState
 	defaultRelatedAddress map[common.Address][][]byte
 }
 
 func NewCli(
 	client *client.Client,
-	clientContext *client_context.ClientContext,
-	transactionController client_types.TransactionController,
-	// accountStateChan chan types.AccountState,
 ) client_types.Cli {
-
 	commands := map[int]string{
 		0: "Exit",
 		1: "Send transaction",
@@ -62,17 +59,19 @@ func NewCli(
 		4: "Get account state",
 		5: "Subscribe",
 		6: "Get stake state",
+		7: "",
 		// 7: "Get smart contract data",
-		8: "Get stats",
-		9: "Change log level",
+		8:  "Get stats",
+		9:  "Change log level",
+		10: "Add account for client",
 	}
 	return &Cli{
-		client: client,
-		clientContext:         clientContext,
+		clientContext:         client.GetClientContext(),
 		stop:                  false,
 		commands:              commands,
-		transactionController: transactionController,
-		// accountStateChan:      accountStateChan,
+		client:                client,
+		transactionController: client.GetTransactionController(),
+		accountStateChan:      client.GetAccountStateChan(),
 		defaultRelatedAddress: make(map[common.Address][][]byte),
 	}
 }
@@ -100,7 +99,8 @@ func (cli *Cli) Start() {
 			cli.CreateAccount()
 		case "4":
 			cli.PrintMessage("Enter address: ", "")
-			cli.client.AccountState(cli.ReadInputAddress())
+			cli.AccountState(cli.ReadInputAddress())
+
 			// TODO4
 		case "5":
 			cli.Subscribe()
@@ -112,6 +112,10 @@ func (cli *Cli) Start() {
 			cli.GetStats()
 		case "9":
 			cli.ChangeLogLevel()
+		case "10":
+			cli.PrintMessage("Enter private key của đia chị ví metamask: ", "")
+			cli.PrintMessage("And enter chain id: ", "")
+			cli.AddAccountForClient(cli.ReadInput(), cli.ReadInput())
 		}
 	}
 }
@@ -160,143 +164,141 @@ func (cli *Cli) PrintCommands() {
 }
 
 func (cli *Cli) SendTransaction() error {
-	cli.PrintMessage("Enter to address: ", "")
-	toAddress := cli.ReadInputAddress()
-	cli.PrintMessage("Enter to amount (default 10*10^18): ", "")
-	amount := cli.ReadBigInt()
-	cli.PrintMessage(`Enter action (default 0):
-	0: None
-	1: Stake
-	2: Unstake
-	3: Deploy smart contract
-	4: Call smart contract
-	8: Open state channel
-	9: Join state channel
-	10: Commit state channel account state
-	11: Commit state channel
-	12: update storage host 
-	`, "")
+	return nil
 
-	actionStr := cli.ReadInput()
-	var action pb.ACTION
-	if actionStr == "" {
-		action = 0
-	} else {
-		actionI, _ := strconv.Atoi(actionStr)
-		action = pb.ACTION(int32(actionI))
-	}
-	if action < 0 || action > 20 {
-		return ErrorInvalidAction
-	}
+	// cli.PrintMessage("Enter to address: ", "")
+	// toAddress := cli.ReadInputAddress()
+	// cli.PrintMessage("Enter to amount (default 10*10^18): ", "")
+	// amount := cli.ReadBigInt()
+	// cli.PrintMessage(`Enter action (default 0):
+	// 0: None
+	// 1: Stake
+	// 2: Unstake
+	// 3: Deploy smart contract
+	// 4: Call smart contract
+	// 8: Open state channel
+	// 9: Join state channel
+	// 10: Commit state channel account state
+	// 11: Commit state channel
+	// 12: update storage host
+	// `, "")
 
-	var data []byte
-	if action == pb.ACTION_UPDATE_STORAGE_HOST {
-		cli.PrintMessage("Enter new storage host: ", "")
-		storageHost := cli.ReadInput()
-		cli.PrintMessage("Enter new storage address: ", "")
-		storageAddress := cli.ReadInputAddress()
-		updateData := transaction.NewUpdateStorageHostData(storageHost, storageAddress)
-		data, _ = updateData.Marshal()
-	}
+	// actionStr := cli.ReadInput()
+	// var action pb.ACTION
+	// if actionStr == "" {
+	// 	action = 0
+	// } else {
+	// 	actionI, _ := strconv.Atoi(actionStr)
+	// 	action = pb.ACTION(int32(actionI))
+	// }
+	// if action < 0 || action > 20 {
+	// 	return ErrorInvalidAction
+	// }
 
-	var err error
-	as, err := cli.client.AccountState(cli.clientContext.KeyPair.Address())
-	if err != nil {
-		return err
-	}
+	// var data []byte
+	// if action == pb.ACTION_UPDATE_STORAGE_HOST {
+	// 	cli.PrintMessage("Enter new storage host: ", "")
+	// 	storageHost := cli.ReadInput()
+	// 	cli.PrintMessage("Enter new storage address: ", "")
+	// 	storageAddress := cli.ReadInputAddress()
+	// 	updateData := transaction.NewUpdateStorageHostData(storageHost, storageAddress)
+	// 	data, _ = updateData.Marshal()
+	// }
 
-	if action == pb.ACTION_DEPLOY_SMART_CONTRACT {
-		data, err = cli.getDataForDeploySmartContract()
-		if err != nil {
-			panic(err)
-		}
-		toAddress = common.BytesToAddress(
-			crypto.Keccak256(
-				append(
-					as.Address().Bytes(),
-					as.LastHash().Bytes()...),
-			)[12:],
-		)
-	}
+	// var err error
+	// as, err := cli.AccountState(cli.clientContext.KeyPair.Address())
+	// if err != nil {
+	// 	return err
+	// }
+
+	// if action == pb.ACTION_DEPLOY_SMART_CONTRACT {
+	// 	data, err = cli.getDataForDeploySmartContract()
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	toAddress = common.BytesToAddress(
+	// 		crypto.Keccak256(
+	// 			append(
+	// 				as.Address().Bytes(),
+	// 				as.LastHash().Bytes()...),
+	// 		)[12:],
+	// 	)
+	// }
 	// var commissionPrivateKey []byte
-	if action == pb.ACTION_CALL_SMART_CONTRACT {
-		data, err = cli.getDataForCallSmartContract()
-		if err != nil {
-			panic(err)
-		}
+	// if action == pb.ACTION_CALL_SMART_CONTRACT {
+	// 	data, err = cli.getDataForCallSmartContract()
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
 
-		cli.PrintMessage("Enter to private key for commission sign: ", "")
-		// hexCommissionPrivateKey := cli.ReadInput()
-		// commissionPrivateKey = common.FromHex(hexCommissionPrivateKey)
-	}
+	// 	cli.PrintMessage("Enter to private key for commission sign: ", "")
+	// 	hexCommissionPrivateKey := cli.ReadInput()
+	// 	commissionPrivateKey = common.FromHex(hexCommissionPrivateKey)
+	// }
 
-	var relatedAddresses [][]byte
-	if action == pb.ACTION_CALL_SMART_CONTRACT || action == pb.ACTION_DEPLOY_SMART_CONTRACT {
-		relatedAddresses = cli.ReadRelatedAddress(toAddress)
-	}
+	// var relatedAddresses [][]byte
+	// if action == pb.ACTION_CALL_SMART_CONTRACT || action == pb.ACTION_DEPLOY_SMART_CONTRACT {
+	// 	relatedAddresses = cli.ReadRelatedAddress(toAddress)
+	// }
 
-	if action == pb.ACTION_OPEN_CHANNEL {
-		validatorAddresses := cli.ReadValidatorAddresses()
-		data, _ = transaction.NewOpenStateChannelData(validatorAddresses).Marshal()
-		toAddress = common.BytesToAddress(
-			crypto.Keccak256(
-				append(
-					as.Address().Bytes(),
-					as.LastHash().Bytes()...),
-			)[12:],
-		)
-	}
+	// if action == pb.ACTION_OPEN_CHANNEL {
+	// 	validatorAddresses := cli.ReadValidatorAddresses()
+	// 	data, _ = transaction.NewOpenStateChannelData(validatorAddresses).Marshal()
+	// 	toAddress = common.BytesToAddress(
+	// 		crypto.Keccak256(
+	// 			append(
+	// 				as.Address().Bytes(),
+	// 				as.LastHash().Bytes()...),
+	// 		)[12:],
+	// 	)
+	// }
 
-	cli.PrintMessage("Enter max gas (default 500000): ", "")
-	maxGas, err := strconv.ParseUint(cli.ReadInput(), 10, 64)
-	if err != nil {
-		if action == pb.ACTION_OPEN_CHANNEL {
-			maxGas = p_common.OPEN_CHANNEL_GAS_COST
-		} else {
-			// maxGas = 500000
-			maxGas = 100000
+	// cli.PrintMessage("Enter max gas (default 500000): ", "")
+	// maxGas, err := strconv.ParseUint(cli.ReadInput(), 10, 64)
+	// if err != nil {
+	// 	if action == pb.ACTION_OPEN_CHANNEL {
+	// 		maxGas = p_common.OPEN_CHANNEL_GAS_COST
+	// 	} else {
+	// 		maxGas = 500000
+	// 	}
+	// }
 
-		}
-	}
-
-	cli.PrintMessage("Enter max gas price in gwei (default 10 gwei): ", "")
-	maxGasPriceGwei, err := strconv.ParseUint(cli.ReadInput(), 10, 64)
-	if err != nil {
-		maxGasPriceGwei = 10
-	}
+	// cli.PrintMessage("Enter max gas price in gwei (default 10 gwei): ", "")
+	// maxGasPriceGwei, err := strconv.ParseUint(cli.ReadInput(), 10, 64)
+	// if err != nil {
+	// 	maxGasPriceGwei = 10
+	// }
 	// maxGasPrice := 1000000000 * maxGasPriceGwei
-	maxGasPrice := 1000000 * maxGasPriceGwei
 
-	cli.PrintMessage("Enter max time use in milli second (default 1000 milli second): ", "")
-	maxTimeUse, err := strconv.ParseUint(cli.ReadInput(), 10, 64)
-	if err != nil {
-		maxTimeUse = 1000
-	}
+	// cli.PrintMessage("Enter max time use in milli second (default 1000 milli second): ", "")
+	// maxTimeUse, err := strconv.ParseUint(cli.ReadInput(), 10, 64)
+	// if err != nil {
+	// 	maxTimeUse = 1000
+	// }
 
-	var transaction types.Receipt
+	// var transaction types.Transaction
 
+	// transaction, err = cli.transactionController.SendTransaction(
+	// 	as.LastHash(),
+	// 	toAddress,
+	// 	as.PendingBalance(),
+	// 	amount,
+	// 	maxGas,
+	// 	maxGasPrice,
+	// 	maxTimeUse,
+	// 	action,
+	// 	data,
+	// 	relatedAddresses,
+	// 	common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000"),
+	// 	common.HexToHash("290decd9548b62a8d60345a988386f,c84ba6bc95484008f6362f93160ef3e563"),
+	// 	commissionPrivateKey,
+	// )
+	// logger.Debug("Sending transaction", transaction)
+	// if err != nil {
+	// 	logger.Warn(err)
+	// }
 
-	relatedAddress := make([]common.Address, 0)
-	for i,v := range relatedAddresses {
-		relatedAddress[i] = common.HexToAddress(string(v))
-	}
-	transaction, err = cli.client.SendTransactionWithDeviceKey(
-		toAddress,
-		amount,
-		action,
-		data,
-		relatedAddress,
-		maxGas,
-		maxGasPrice,
-		maxTimeUse,
-	)
-
-	logger.Debug("Sending transaction", transaction)
-	if err != nil {
-		logger.Warn(err)
-	}
-
-	return err
+	// return err
 }
 
 func (cli *Cli) ChangeAccount() {
@@ -362,17 +364,19 @@ func (cli *Cli) PrintMessage(message string, color string) {
 
 func (cli *Cli) AccountState(address common.Address) (types.AccountState, error) {
 	parentConn := cli.clientContext.ConnectionsManager.ParentConnection()
+	parentConn.SetRealConnAddr(cli.clientContext.Config.ParentConnectionAddress)
 	cli.clientContext.MessageSender.SendBytes(
 		parentConn,
 		command.GetAccountState,
 		address.Bytes(),
 	)
-	// select {
-	// case accountState := <-cli.accountStateChan:
-	// 	return accountState, nil
-	// case <-time.After(2 * time.Second):
+	select {
+	case accountState := <-cli.accountStateChan:
+		logger.Info(accountState)
+		return accountState, nil
+	case <-time.After(2 * time.Second):
 		return nil, ErrorGetAccountStateTimedOut
-	// }
+	}
 }
 
 func (cli *Cli) StakeState(address common.Address) {
@@ -381,6 +385,45 @@ func (cli *Cli) StakeState(address common.Address) {
 		parentConn,
 		command.GetStakeState,
 		address.Bytes(),
+	)
+}
+
+func (cli *Cli) AddAccountForClient(privateKey string, chainId string) {
+	// Đây là private key của đia chị ví metamask
+	prk, _ := hex.DecodeString(privateKey)
+	blsPublicKey := cli.clientContext.KeyPair.PublicKey().Bytes()
+	message := append(blsPublicKey, []byte(chainId)...)
+	hash := crypto.Keccak256(message)
+	sig, err := secp256k1.Sign(hash, prk)
+	if err != nil {
+		logger.Error("Error Sign", err)
+	}
+
+	pbk, err := secp256k1.RecoverPubkey(hash, sig)
+	if err != nil {
+		logger.Error("Error RecoverPubkey", err)
+	}
+	combined := make([]byte, len(blsPublicKey)+len(sig)) // Tạo một slice mới có kích thước đủ lớn
+	copy(combined, blsPublicKey)                         // Sao chép blsPublicKey vào slice mới
+	copy(combined[len(blsPublicKey):], sig)
+
+	var addr common.Address
+	copy(addr[:], crypto.Keccak256(pbk[1:])[12:])
+	bigI := big.NewInt(1)
+	callData := transaction.NewCallData(combined)
+	cData, _ := callData.Marshal()
+
+	cli.client.SendTransactionWithDeviceKey(
+		// Đây nhập đia chỉ ví tương ứng với private key phía trên
+		addr,
+		addr,
+		bigI,
+		pb.ACTION_EMPTY,
+		cData,
+		nil,
+		100000,
+		1000000000,
+		6000,
 	)
 }
 

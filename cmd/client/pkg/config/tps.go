@@ -7,10 +7,10 @@ import (
 )
 
 type TpsConfig struct {
-	PrivateKey_ string
-	NodeAddress string
-	DnsLink_    string
-	ScAddresses []string
+	PrivateKey_   string
+	ParentAddress string
+	DnsLink_      string
+	ScAddresses   []string
 }
 
 var Config *TpsConfig
